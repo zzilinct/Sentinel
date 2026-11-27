@@ -227,7 +227,7 @@ async function checkVibe() {
 
     // Settings in a phone's browser, without the Windows app: what needs the app is named, with no dead switches.
     await store('dark', 'sapphire');
-    await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}`, "document.querySelector('[data-set-row]')");
+    await goto(browser, s, `${sentinel.base}/app/settings?at=${Date.now()}#protection`, "document.querySelector('[data-set-row]')");
     await sleep(1200);
     const set = await ev("({ dead: [...document.querySelectorAll('.set-row .switch')].filter((x) => x.offsetParent && x.disabled).length, rows: document.querySelectorAll('.set-row--app').length, tall: document.documentElement.scrollHeight })");
     await shot(browser, s, 'vibe-app-settings-phone');

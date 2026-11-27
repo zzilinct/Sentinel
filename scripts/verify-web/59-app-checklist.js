@@ -68,10 +68,19 @@ const CHECKLIST = {
   '/app/checkup': [{ what: 'the words under the title', sel: '.page-title p' }],
   '/app/week': [{ what: 'the week', sel: '[data-week]' }],
   '/app/history': [{ what: 'the figures', sel: '[data-stats]' }, { what: 'the list', sel: '[data-list]' }],
+  // Settings shows a section at a time: a phone opens on the list of sections; a hash opens one.
   '/app/settings': [
-    { what: 'groups on the left', sel: '.set-rail a', n: 11, all: true, only: 'desktop' }, { what: 'find a setting', sel: '.set-find input' },
-    { what: 'Appearance group', sel: '[data-set-group="look"]' }, { what: 'colour coins', sel: '#accent .look__coin', n: 6, all: true },
-    { what: 'light and dark choice', sel: '.look__group' }
+    { what: 'find a setting', sel: '.set-find input' }, { what: 'sections on the left', sel: '.set-rail a', n: 5, all: true, only: 'desktop' },
+    { what: 'the list of sections', sel: '.set-index__row', n: 5, all: true, only: 'phone' }
+  ],
+  '/app/settings#look': [
+    { what: 'sections on the left', sel: '.set-rail a', n: 5, all: true, only: 'desktop' }, { what: 'find a setting', sel: '.set-find input' },
+    { what: 'Appearance group', sel: '[data-set-group="look"]' }, { what: 'preview of the app', sel: '.look-prev', all: true }, { what: 'preview button', sel: '.look-prev .btn--gold' },
+    { what: 'preview ring', sel: '.look-prev__ring' }, { what: 'colour coins', sel: '#accent .look__coin', n: 6, all: true },
+    { what: 'light and dark choice', sel: '.look__group' }, { what: 'text size choice', sel: '#text-size [data-seg]', n: 3, all: true }
+  ],
+  '/app/settings#protection': [
+    { what: 'back to the list', sel: '.set-back', only: 'phone' }, { what: 'Live protection group', sel: '[data-set-group="protection"]' }
   ],
   '/app/plan': [{ what: 'the plan panel', sel: '.panel' }],
   '/app/assistants': [{ what: 'the assistants panel', sel: '.panel' }],
@@ -300,7 +309,7 @@ async function checkApp() {
       for (const lk of LOOKS) {
         await look(size, lk);
         for (const [page, items] of Object.entries(CHECKLIST)) {
-          await visit(page, [...SHELL, ...items], size, lk, page === '/app' ? 'overview' : page.slice(5), "document.querySelector('.page-title h1')");
+          await visit(page, [...SHELL, ...items], size, lk, page === '/app' ? 'overview' : page.slice(5).replace('#', '-'), "document.querySelector('.page-title h1')");
         }
       }
     }
@@ -309,7 +318,7 @@ async function checkApp() {
     for (const lk of LOOKS) {
       await look('desktop', lk);
       for (const [page, items] of Object.entries(CHECKLIST)) {
-        await visit(page, [...FRAME, ...SHELL, ...items], 'desktop', lk, `inapp-${page === '/app' ? 'overview' : page.slice(5)}`, "document.querySelector('.page-title h1') && document.querySelector('.frame__mark svg')");
+        await visit(page, [...FRAME, ...SHELL, ...items], 'desktop', lk, `inapp-${page === '/app' ? 'overview' : page.slice(5).replace('#', '-')}`, "document.querySelector('.page-title h1') && document.querySelector('.frame__mark svg')");
       }
     }
     await browser.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: inApp }, s);
@@ -355,11 +364,17 @@ async function checkApp() {
       new MutationObserver(() => { if (__lag.drawn == null && __lag.t0) __lag.drawn = performance.now() - __lag.t0; }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-accent', 'style'] });
       try { new PerformanceObserver((l) => { for (const e of l.getEntries()) __lag.long = Math.max(__lag.long, e.duration); }).observe({ type: 'longtask', buffered: false }); } catch (e) { /* not offered */ }
       return true; })()`);
-    await clickSel(browser, s, '#accent .look__coin:has(input[value="sapphire"])');
-    await sleep(1800);
-    const lag = await ev("({ ...__lag, accent: document.documentElement.dataset.accent, vt: document.documentElement.classList.contains('look-vt') })");
-    result('app-checklist: a press on a colour coin draws the colour within 250 ms, no task holds the page over 150 ms, and the change has finished (no stuck transition class)',
-      lag.accent === 'sapphire' && lag.drawn != null && lag.drawn <= 250 && lag.long <= 150 && !lag.vt, lag);
+    // Five presses in turn, each read alone (the page's preview and its coins repaint with every one).
+    const lags = [];
+    for (const id of ['sapphire', 'rose', 'teal', 'amethyst', 'platinum']) {
+      await ev('__lag.t0 = 0; __lag.drawn = null; __lag.long = 0; true');
+      await clickSel(browser, s, `#accent .look__coin:has(input[value="${id}"])`);
+      await sleep(1500);
+      lags.push({ id, ...(await ev("({ ...__lag, accent: document.documentElement.dataset.accent, vt: document.documentElement.classList.contains('look-vt'), preview: getComputedStyle(document.querySelector('.look-prev__ring')).borderTopColor })")) });
+    }
+    result('app-checklist: five presses on colour coins each draw the colour within 250 ms, no task holds the page over 150 ms, and each change has finished (no stuck transition class)',
+      lags.every((l) => l.accent === l.id && l.drawn != null && l.drawn <= 250 && l.long <= 150 && !l.vt), lags);
+    result('app-checklist: the preview in Settings changes colour with every press', new Set(lags.map((l) => l.preview)).size === lags.length, lags.map((l) => l.preview));
   } finally { await close(); await server.stop(); }
 }
 

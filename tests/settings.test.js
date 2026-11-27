@@ -97,3 +97,42 @@ test('home and Live protection call on only what is running: no "Protection is o
   assert.doesNotMatch(page, /st\(!lock && desktop,/, 'page warnings and search marks are On only while live scanning is');
   assert.match(page, /st\(!lock && liveOn, lock \|\| 'Off'\)/);
 });
+
+// Settings shows one section at a time (settingsView): five sections, each holding some groups, so a row is on exactly one page.
+const sections = [...between('const SETTING_SECTIONS = [', '\n  ];').matchAll(/\['([\w-]+)', '[^']+', '[^']+', \[([^\]]*)\]\]/g)].map((m) => [m[1], [...m[2].matchAll(/'([\w-]+)'/g)].map((g) => g[1])]);
+const rowGroup = Object.fromEntries([...rows.matchAll(/(?:\{|appSwitch\(\{) id: '([\w-]+)',(?: kind: '\w+',)? group: '([\w-]+)'/g)].map((m) => [m[1], m[2]]));
+
+test('settings: every group is on exactly one section page, so every row is reachable from one place', () => {
+  assert.strictEqual(sections.length, 5);
+  const held = sections.flatMap(([, gs]) => gs);
+  assert.deepStrictEqual([...held].sort(), [...groups].sort(), 'each group is in a section, once');
+  for (const [id] of sections) assert.ok(groups.includes(id), `section ${id} is also a group, so an old #${id} address still lands`);
+  // The first-run rows carry their group in first.js's ROW; every row's group must be one a section holds.
+  for (const id of ids) {
+    const g = rowGroup[id] || [...rows.matchAll(new RegExp(`id: '${id}'[^]*?group: '([\w-]+)'`, 'g'))].map((m) => m[1])[0];
+    assert.ok(held.includes(g), `row ${id} (group ${g}) is on a section page`);
+  }
+});
+
+test('settings: every address that points into Settings lands on a row or a group', () => {
+  const found = new Set();
+  const look = (dir) => { for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, f.name);
+    if (f.isDirectory()) { if (!/node_modules|bundle|dist|fonts|img/.test(f.name)) look(p); continue; }
+    if (!/\.(js|html)$/.test(f.name)) continue;
+    for (const [, id] of fs.readFileSync(p, 'utf8').matchAll(/app\/settings#([\w-]+)/g)) found.add(id);
+  } };
+  look(web); look(path.join(__dirname, '..', 'desktop', 'src'));
+  assert.ok(found.size >= 8, `addresses found: ${[...found].join()}`);
+  for (const id of found) assert.ok(ids.includes(id) || groups.includes(id), `/app/settings#${id} names a row or a group`);
+  // The router sends the older Live protection addresses to the same rows.
+  for (const id of between('const MOVED_TO_SETTINGS = [', '];').match(/'([\w-]+)'/g).map((s) => s.slice(1, -1))) assert.ok(ids.includes(id), `#${id} is a row`);
+});
+
+test('settings: a phone opens on the list of sections, a wide screen on Appearance, and the search shows matches from every section', () => {
+  const view = fn('settingsView');
+  assert.match(view, /sectionOf\(location\.hash\.slice\(1\)\) \|\| \(wide\.matches \? 'look' : ''\)/, 'no address: Appearance on a wide screen, the list on a phone');
+  assert.match(view, /x\.hidden = !finding && x\.dataset\.setSec !== s/, 'searching shows every section');
+  assert.match(view, /href="\/app\/settings#\$\{s\}"/, 'the phone list links are real addresses, so Back works');
+  assert.doesNotMatch(view, /IntersectionObserver/, 'no scroll watcher: the section list is marked by the section open');
+});

@@ -45,6 +45,9 @@ const standIn = `(() => {
 
 const ROWS = "[...document.querySelectorAll('[data-set-row]')]";
 const SHOWN = `${ROWS}.filter((r) => !r.classList.contains('is-out')).map((r) => r.id)`;
+/** Opens a section or a row as a link to it would: the address changes and the page answers, with no reload. */
+const open = (browser, s, id) => evalIn(browser, s, `(() => { history.pushState({}, '', '/app/settings#${id}'); dispatchEvent(new PopStateEvent('popstate')); })()`);
+const SECTIONS = ['look', 'protection', 'account', 'data', 'help'];
 
 async function checkSettings() {
   const server = await startServer('settings');
@@ -102,10 +105,11 @@ async function checkSettings() {
         await shot(browser, s, `settings-home-${size}-${theme}`);
 
         // Your data and Help, each brought to the top as a link to it would. What changed is read from the download page.
-        for (const g of ['data', 'help']) {
-          await evalIn(browser, s, `document.getElementById('${g}').scrollIntoView({ block: 'start' })`);
+        for (const g of SECTIONS) {
+          await open(browser, s, g);
+          await until(browser, s, ready, 20000);
           if (g === 'help') await until(browser, s, "document.querySelector('#whats-new .set-note, #whats-new .set-sub')", 10000);
-          await sleep(300);
+          await sleep(400);
           await shot(browser, s, `settings-${g}-${size}-${theme}`);
         }
         trust = await evalIn(browser, s, `(() => ({ data: [...document.querySelectorAll('#data [data-set-row]')].map((r) => r.id),
@@ -151,7 +155,7 @@ async function checkSettings() {
       trust.data.join() === 'download-data,history-data,live-memory,delete-account' && !trust.account.includes('delete-account'), trust);
     // Before launch the mailbox's domain does not exist, so the way to write is the GitHub page, where a message arrives.
     result('settings: Help shows the newest release note and a way to write to us that works today', /New in Sentinel \d+\.\d+\.\d+/.test(trust.note) && /^https:\/\/github\.com\/zzilinct\/Sentinel\/issues/.test(trust.mail), trust);
-    result('settings: the group list names every group, and your sites are listed', home.rail.length === 11 && /Appearance/.test(home.rail[0]) && /Motion/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
+    result('settings: the section list names every section, and your sites are listed', home.rail.length === 5 && /Appearance/.test(home.rail[0]) && /Protection/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
     result('settings: nothing scrolls sideways', !wide.length, wide);
 
     /* -------------------------------------------------- saving, at desktop size */
@@ -198,6 +202,8 @@ async function checkSettings() {
         await goto(browser, s, `${server.base}/app/settings`);
         await until(browser, s, ready, 20000);
         for (const [row, name] of [['marks-beside-links', 'marks'], ['warn-level', 'warnings']]) {
+          await open(browser, s, row);
+          await sleep(200);
           await evalIn(browser, s, `document.getElementById(${JSON.stringify(row)}).scrollIntoView({ block: 'center' })`);
           await sleep(300);
           const r = await evalIn(browser, s, level(row));
@@ -221,12 +227,90 @@ async function checkSettings() {
     await until(browser, s, `location.pathname === '/app/settings' && ${ready}`, 20000);
     await sleep(1200);
     const account = await evalIn(browser, s, "({ at: location.pathname + location.hash, top: Math.round(document.getElementById('account').getBoundingClientRect().top), twoFactor: Boolean(document.querySelector('[data-2fa] [data-setup]')) })");
-    result('settings: /app/security opens the account group, two-factor ready to set up', account.at === '/app/settings#account' && account.top < 200 && account.twoFactor, account);
+    result('settings: /app/security opens the account group, two-factor ready to set up', account.at === '/app/settings#account' && account.top >= 0 && account.top < 400 && account.twoFactor, account);
     await goto(browser, s, `${server.base}/app/settings?from=old#not-a-setting`);   // a new page, not a jump within this one
     await until(browser, s, ready, 20000);
     await sleep(800);
     const stale = await evalIn(browser, s, '({ y: scrollY, found: document.querySelectorAll(".is-found").length })');
     result('settings: an unknown address is ignored', stale.y === 0 && stale.found === 0, stale);
+
+    /* ----------------------------------------------- one section at a time, and every old address still lands */
+    const seen = `(() => { const e = document.getElementById(%ID%); const r = e.getBoundingClientRect(); return { open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight }; })()`;
+    // Each address the app, the tray, notifications and the website use, with the section it must open.
+    const LINKS = { look: 'look', accent: 'look', motion: 'look', 'simple-view': 'look', 'text-size': 'look', moving: 'look', protection: 'protection', 'chat-safety': 'protection', 'text-safety': 'protection',
+      'my-sites': 'protection', 'exposure-alerts': 'protection', 'week-note': 'protection', guards: 'protection', account: 'account', 'two-factor': 'account', 'parent-lock': 'account', plan: 'account',
+      data: 'data', 'delete-account': 'data', help: 'help', 'whats-new': 'help' };
+    for (const [size, [width, height, mobile]] of Object.entries(SIZES)) {
+      await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
+      await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
+      await goto(browser, s, `${server.base}/app/settings`);
+      await until(browser, s, ready, 20000);
+      const lost = [];
+      for (const [id, sec] of Object.entries(LINKS)) {
+        await open(browser, s, id);
+        await until(browser, s, `document.querySelector('.set-sec:not([hidden])') && document.getElementById('${id}').getBoundingClientRect().height > 0`, 5000);
+        await sleep(150);
+        const at = await evalIn(browser, s, seen.replace('%ID%', JSON.stringify(id)));
+        if (at.open !== sec || at.h <= 0 || at.top < 0 || at.top >= at.vh) lost.push({ id, want: sec, ...at });
+      }
+      result(`settings: every old address (${Object.keys(LINKS).length} of them) opens its own section only, with its row on screen (${size})`, !lost.length, lost);
+    }
+
+    // Wide: opens on Appearance, the list sits beside the page, a press opens a section in place and leaves no history entry.
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+    await goto(browser, s, `${server.base}/app/settings`);
+    await until(browser, s, ready, 20000);
+    const wideOpen = await evalIn(browser, s, "({ open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), here: document.querySelector('.set-rail [aria-current]').textContent, index: document.querySelector('[data-set-index]').hidden, back: document.querySelector('[data-set-back]').hidden, preview: Boolean(document.querySelector('.look-prev')) })");
+    result('settings: a wide screen opens on Appearance with the section list beside it and a preview of the app', wideOpen.open === 'look' && wideOpen.here === 'Appearance' && wideOpen.index && wideOpen.back && wideOpen.preview, wideOpen);
+    const hist = await evalIn(browser, s, 'history.length');
+    await evalIn(browser, s, "document.querySelector('.set-rail [data-set-go=protection]').click()");
+    await sleep(500);
+    const moved = await evalIn(browser, s, `({ open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), here: document.querySelector('.set-rail [aria-current]').textContent, hash: location.hash, same: history.length === ${hist}, y: scrollY })`);
+    result('settings: pressing a section in the list opens it in place, marks it, and adds no history entry', moved.open === 'protection' && moved.here === 'Protection' && moved.hash === '#protection' && moved.same, moved);
+    await shot(browser, s, 'settings-section-desktop-protection');
+
+    // Phone: the list of sections first, a press opens a page with a way back, and the browser's Back button agrees.
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, s);
+    await goto(browser, s, `${server.base}/app/settings`);
+    await until(browser, s, ready, 20000);
+    const phoneState = () => evalIn(browser, s, "({ open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), index: !document.querySelector('[data-set-index]').hidden, back: !document.querySelector('[data-set-back]').hidden, hash: location.hash, rows: document.querySelectorAll('.set-index__row').length, railShown: getComputedStyle(document.querySelector('.set-rail')).display !== 'none' })");
+    const list = await phoneState();
+    result('settings: a phone opens on the list of five sections, with no section open and no side list', list.index && list.rows === 5 && list.open === '' && !list.back && !list.railShown, list);
+    await shot(browser, s, 'settings-index-phone-dark');
+    await evalIn(browser, s, "document.querySelector('.set-index__row[href$=account]').click()");
+    await until(browser, s, "location.hash === '#account'", 5000);
+    await sleep(500);
+    const page = await phoneState();
+    result('settings: pressing a section on a phone opens that section with a link back to the list', page.open === 'account' && page.back && !page.index && page.hash === '#account', page);
+    await shot(browser, s, 'settings-account-phone-dark');
+    await evalIn(browser, s, "document.querySelector('[data-set-back]').click()");
+    await until(browser, s, "!location.hash && !document.querySelector('[data-set-index]').hidden", 5000);
+    await evalIn(browser, s, 'history.back()');
+    await until(browser, s, "location.hash === '#account'", 5000);
+    await sleep(400);
+    const again = await phoneState();
+    result('settings: on a phone the way back goes to the list, and the browser Back button returns to the section', again.open === 'account' && again.back && !again.index, again);
+
+    // The preview is the app: its colour follows the colour chosen, its green never does, and its words follow the text size.
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
+    await goto(browser, s, `${server.base}/app/settings#look`);
+    await until(browser, s, ready, 20000);
+    const probe = `(() => { const p = (v, prop) => { const e = document.createElement('i'); e.style[prop] = 'var(' + v + ')'; document.body.append(e); const c = getComputedStyle(e)[prop]; e.remove(); return c; };
+      const t = document.querySelector('.look-prev__page b'); return { ring: getComputedStyle(document.querySelector('.look-prev__ring')).borderTopColor, gold: p('--gold-400', 'color'), ok: getComputedStyle(document.querySelector('.look-prev__ok')).color, green: p('--green', 'color'), size: parseFloat(getComputedStyle(t).fontSize) }; })()`;
+    const prev = {};
+    for (const accent of ['gold', 'rose', 'teal']) {
+      await evalIn(browser, s, `SentinelLook.set({ accent: '${accent}' }), true`);
+      await sleep(1100);
+      prev[accent] = await evalIn(browser, s, probe);
+    }
+    await shot(browser, s, 'settings-look-desktop-teal');
+    await evalIn(browser, s, "SentinelLook.set({ text: 'larger' }), true");
+    await sleep(900);
+    const big = await evalIn(browser, s, probe);
+    await evalIn(browser, s, "SentinelLook.set({ text: 'standard', accent: 'gold' }), true");
+    result('settings: the preview wears the chosen colour and text size, and its green is the same green in every colour',
+      Object.values(prev).every((p) => p.ring === p.gold) && new Set(Object.values(prev).map((p) => p.gold)).size === 3 && Object.values(prev).every((p) => p.ok === p.green) && new Set(Object.values(prev).map((p) => p.green)).size === 1 && big.size > prev.gold.size,
+      { prev, larger: big.size });
 
     /* ------------------------------------- Download my data, and a false alarm */
     await evalIn(browser, s, `(() => { window.__saved = []; const click = HTMLAnchorElement.prototype.click;

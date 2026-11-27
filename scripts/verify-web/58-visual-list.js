@@ -85,7 +85,10 @@ const APP = [
     ['what goes here', '.ask__try', { text: true, clear: true }], ['call line', '.ask__call', { text: true, clear: true }]
   ]],
   ['/app/history', 'history', "document.querySelector('#view h1') && !document.querySelector('#view .skeleton')", [...SIDE]],
-  ['/app/settings', 'settings', "document.querySelectorAll('[data-set-row]').length > 20", [...SIDE, ['colour coins', '#accent .look__coin', { n: COINS }], ['text size', '#text-size [data-seg]', { n: 2, text: true }]]],
+  // Settings is a section at a time (a hash opens one): Appearance, then Protection; a phone's first page is the list of sections.
+  ['/app/settings', 'settings', "document.querySelectorAll('[data-set-row]').length > 20", [...SIDE, ['colour coins', '#accent .look__coin', { n: COINS }], ['text size', '#text-size [data-seg]', { n: 2, text: true }], ['preview of the app', '.look-prev', { only: 'desktop' }], ['section list', '.set-rail a', { n: 5, text: true, only: 'desktop' }]], '#look'],
+  ['/app/settings', 'settings-index', "document.querySelectorAll('[data-set-row]').length > 20", [...SIDE, ['find a setting', '.set-find input', {}], ['sections', '.set-index__row', { n: 5, text: true, only: 'phone' }]]],
+  ['/app/settings', 'settings-protection', "document.querySelectorAll('[data-set-row]').length > 20", [...SIDE, ['back to the list', '.set-back', { text: true, only: 'phone' }], ['Live protection', '[data-set-group="protection"] .set-group__title', { text: true }], ['a protection switch', '#auto-scan', {}]], '#protection'],
   ['/app/plan', 'plan', "document.querySelector('#view h1') && !document.querySelector('#view .skeleton')", [...SIDE]],
   ['/app/sites', 'sites', "document.querySelector('#view h1') && !document.querySelector('#view .skeleton')", [...SIDE]],
   ['/app/checkup', 'checkup', "document.querySelector('#view h1') && !document.querySelector('#view .skeleton')", [...SIDE]],
@@ -322,11 +325,11 @@ async function checkVisualList() {
     };
 
     const run = async (list, setups, app) => {
-      for (const [p, name, ready, items] of list) {
+      for (const [p, name, ready, items, at = ''] of list) {
         for (const x of setups) {
           await setup(x, SETUPS.indexOf(x));
           errors.length = 0;
-          await goto(browser, s, `${server.base}${p}?list=${Date.now()}`, ready);
+          await goto(browser, s, `${server.base}${p}?list=${Date.now()}${at}`, ready);
           await sleep(500);
           await evalIn(browser, s, SETTLE, { awaitPromise: true });
           const phone = x.size.mobile;
