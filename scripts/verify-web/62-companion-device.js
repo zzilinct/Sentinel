@@ -140,6 +140,8 @@ async function checkCompanionDevice() {
     await shot(browser, away.sessionId, 'companion-device-away-search');
     await browser.send('Target.closeTarget', { targetId: away.targetId }).catch(() => {});
     await goto(browser, opt.sessionId, `${ext}/src/options.html`, "document.getElementById('headline') && document.getElementById('headline').textContent.length > 0");
+    const awayState = await evalIn(browser, opt.sessionId, "chrome.runtime.sendMessage({ type: 'state' }).then((s) => ({ away: s.away, locked: s.locked, signedIn: s.account && s.account.signedIn, enabled: s.settings && s.settings.enabled, ok: s.ok }))");
+    console.log(`      state after the scanner went: ${JSON.stringify(awayState)}`);
     const awayHead = await evalIn(browser, opt.sessionId, "document.getElementById('headline').textContent + ' | ' + document.getElementById('headLine').textContent");
     result('companion-device: the settings headline says Sentinel cannot reach its scanner, never that it is on', /cannot reach its scanner/.test(awayHead) && /Pages are checked on this device only/.test(awayHead) && !/\bis on\b/.test(awayHead), { awayHead });
     for (const scheme of ['dark', 'light']) {
