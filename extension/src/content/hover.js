@@ -99,7 +99,7 @@
     const t = threat && verdict.threats && verdict.threats[threat];
     const host = verdict.host || '';
     if (!t || !t.badge) {
-      return { key: 'clear', color: Masks.COLORS.clear, icon: CHECK, head: verdict.knowledge && verdict.knowledge.trusted ? 'A verified site' : 'No warning signs found', reason: '', host };
+      return { key: 'clear', color: Masks.COLORS.clear, icon: CHECK, head: verdict.device ? 'Checked on this device only' : verdict.knowledge && verdict.knowledge.trusted ? 'A verified site' : 'No warning signs found', reason: '', host };
     }
     return { key: `${threat}:${t.badge}`, status: t.badge, color: Masks.COLORS[t.badge], icon: Masks.svg(threat), head: `${Masks.SEVERITY[t.badge] || 'Caution'}: ${t.label}`, reason: Masks.reasonLine(verdict.reasons, threat), host };
   }

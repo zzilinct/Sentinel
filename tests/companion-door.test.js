@@ -17,7 +17,8 @@ const Say = require('../extension/src/lib/say.js');
 const RED = { url: 'http://bad.test/x', host: 'bad.test', threats: { scam: { badge: 'red' } }, reasons: [{ text: 'A fake sign-in' }, { text: 'Young address' }], overall: { badge: 'red', label: 'Confirmed scam' } };
 
 /** The worker with a browser that keeps its rules, like the real one. */
-function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null } = {}) {
+function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null, signedOut = false } = {}) {
+  const asked = [];
   const dynamic = [];
   const session = [];
   const on = {};
@@ -30,7 +31,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
     for (const id of removeRuleIds) { const i = rules.findIndex((r) => r.id === id); if (i >= 0) rules.splice(i, 1); }
     for (const r of addRules) { assert.ok(!rules.some((x) => x.id === r.id), 'rule ids stay unique'); rules.push(JSON.parse(JSON.stringify(r))); }
   };
-  const local = { authToken: 't', account: { signedIn: true, plan: { features: { liveFast: true } }, usage: {} }, intel: { hosts: list.map((host) => ({ host, threat: 'scam' })), at: Date.now() } };
+  const local = { authToken: 't', account: signedOut ? { signedIn: false } : { signedIn: true, plan: { features: { liveFast: true } }, usage: {} }, intel: { hosts: list.map((host) => ({ host, threat: 'scam' })), at: Date.now() } };
   const area = (store) => ({ get: async (k) => { const keys = typeof k === 'string' ? [k] : Array.isArray(k) ? k : Object.keys(k || {}); return Object.fromEntries(keys.filter((x) => x in store).map((x) => [x, store[x]])); }, set: async (o) => { Object.assign(store, o); }, remove: async (k) => { delete store[k]; } });
   const ext = {
     runtime: { id: 'me', getURL: (p) => `chrome-extension://me/${p}`, getManifest: () => ({ content_scripts: [], version: '1' }), onMessage: listener('m'), onMessageExternal: listener('x'), onInstalled: listener('i'), onStartup: listener('s'), lastError: null },
@@ -47,16 +48,17 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null }
   };
   const ctx = { chrome: ext, crypto: globalThis.crypto, TextEncoder, URL, btoa, atob, Uint8Array, AbortController, AbortSignal, setTimeout, clearTimeout, console, Promise,
     fetch: async (u) => {
+      asked.push(String(u));
       if (fetchVerdict && u.includes('/live/visit')) return { ok: true, json: async () => ({ verdict: fetchVerdict }) };
       if (u.includes('/auth/me')) return { ok: true, json: async () => ({ user: {}, plan: { features: { liveFast: true } }, usage: { liveMinutes: {} }, week: {} }) };
       throw new Error('offline');
     } };
   vm.createContext(ctx);
-  vm.runInContext(`${[read('lib/store.js'), read('lib/say.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder;`, ctx);
+  vm.runInContext(`${[read('lib/store.js'), read('lib/say.js'), flat('lib/brand.js'), flat('lib/api.js'), flat('lib/engine.js'), flat('lib/device.js'), flat('lib/pwalarm.js'), flat('background.js')].join('\n')}\n;this.handlers = handlers; this.syncDoor = syncDoor; this.recalled = recalled; this.localVerdict = localVerdict; this.doorOnAddress = doorOnAddress; this.cacheSet = cacheSet; this.inTabOrder = inTabOrder; this.loadList = loadList; this.liveBatch = liveBatch;`, ctx);
   const blockTab = { id: 'me', url: 'chrome-extension://me/src/block.html', tab: { id: 7, active: true } };
   const call = async (type, msg = {}, sender = blockTab) => { await ctx.recalled; return JSON.parse(JSON.stringify(await ctx.handlers[type]({ type, ...msg }, sender))); };
   const settled = async () => { await ctx.inTabOrder('door', () => {}); };
-  return { ctx, dynamic, session, on, scripts, updates, messages, call, settled, blockTab };
+  return { asked, ctx, dynamic, session, on, scripts, updates, messages, call, settled, blockTab };
 }
 
 test('a listed site becomes one browser rule, for main pages only, and the same check matches what the rule matches', async () => {
@@ -292,4 +294,52 @@ test('the worker takes each question only from the pages that ask it: settings f
   await taken('report', { url: 'https://evil.test/login', category: 'phishing' }, page('https://evil.test/'));
   await taken('report', { url: 'https://bad.test/', category: 'phishing' }, w.blockTab);
   await taken('report', { url: 'https://bad.test/', category: 'phishing' }, page('https://www.bing.com/search?q=x'));
+});
+
+/* ----------------------------------------------------------- the engine on this device */
+
+const { listFile } = require('../scripts/engine-bundle');
+const THREAT_LIST = listFile([{ host: 'listed-only-here.test', threat: 'scam' }]);
+const loadThreatList = (w) => w.ctx.loadList(THREAT_LIST.buffer.slice(THREAT_LIST.byteOffset, THREAT_LIST.byteOffset + THREAT_LIST.length));
+const COPY = ['https://paypa', '1.com/login'].join('');
+
+test('signed out, this device answers: a listed site is red, a copy of a brand is orange, the rest says it was only checked here, and nothing is sent', async () => {
+  const w = worker({ signedOut: true });
+  await w.ctx.recalled;
+  loadThreatList(w);
+  const honest = 'https://example.org/page';
+  const { verdicts, device, locked } = await w.ctx.liveBatch(['https://listed-only-here.test/a', COPY, honest], 'quick');
+  assert.equal(locked, undefined, 'not "locked": the device is checking');
+  assert.equal(device, true);
+  assert.equal(verdicts['https://listed-only-here.test/a'].overall.badge, 'red');
+  assert.equal(verdicts[COPY].overall.badge, 'orange');
+  assert.equal(verdicts[COPY].realSite.host, 'paypal.com');
+  assert.equal(verdicts[honest].overall.badge, null);
+  assert.equal(verdicts[honest].device, true, 'a clean answer says where it came from');
+  assert.equal(verdicts[honest].overall.label, 'Checked on this device');
+  assert.deepEqual(w.asked, [], 'not one request left the worker');
+});
+
+test('signed in with the scanner away: the same answers, said to be from this device, and never kept as a scanner answer', async () => {
+  const w = worker();   // its fetch refuses everything but the account
+  await w.ctx.recalled;
+  const { verdicts, device } = await w.ctx.liveBatch(['https://example.org/a'], 'quick');
+  assert.equal(device, true);
+  assert.equal(verdicts['https://example.org/a'].device, true);
+  assert.equal((await w.ctx.liveBatch(['https://example.org/a'], 'quick')).device, true, 'asked again, not remembered as an answer');
+  assert.ok(w.asked.some((u) => u.includes('/live/batch')), 'the scanner was asked when it could be');
+});
+
+test('the words say it when Sentinel is not checking everything: paused, never "on", no emoji, no dash', () => {
+  const base = { ok: true, settings: { enabled: true, warnOnNavigate: true }, device: { count: 5 } };
+  const out = Say.protection({ ...base, account: { signedIn: false } });
+  assert.equal(out.tone, 'paused');
+  assert.match(out.title, /on this device only/);
+  assert.match(out.line, /nothing is sent anywhere/);
+  assert.match(Say.protection({ ...base, device: null, account: { signedIn: false } }).line, /has not been downloaded yet/);
+  const away = Say.protection({ ...base, account: { signedIn: true, plan: {} }, away: true });
+  assert.equal(away.tone, 'paused');
+  assert.match(away.title, /cannot reach its scanner/);
+  assert.equal(Say.protection({ ...base, account: { signedIn: true, plan: {} }, away: false }).tone, 'on');
+  for (const s of [out, away]) assert.doesNotMatch(`${s.title} ${s.line}`, /[—–]|[\u{1F300}-\u{1FAFF}]/u);
 });

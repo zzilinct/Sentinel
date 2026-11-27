@@ -45,6 +45,9 @@ copy(path.join(ROOT, 'web', 'assets', 'js', 'look.js'), path.join(SRC, 'src', 'l
 copy(path.join(ROOT, 'server', 'lib', 'scan', 'clickfix.js'), path.join(SRC, 'src', 'content', 'clickfix.js'));
 // And for the pay pause's wording rules (gift cards and crypto by title and labels), the same the Windows app uses.
 copy(path.join(ROOT, 'server', 'lib', 'scan', 'paywords.js'), path.join(SRC, 'src', 'content', 'paywords.js'));
+// The on-device engine is made from the scanner's address rules (scripts/engine-bundle.js) and committed: a change to
+// those rules without a rebuilt engine stops the build here, so the companion can never check by older rules than the scanner.
+if (!require('./engine-bundle').upToDate()) throw new Error('extension/src/lib/engine.js is out of date with server/lib/scan/{brands,lists,url}.js: run node scripts/engine-bundle.js --write');
 // And for chat safety's rules: the hints beside messages in web chats are the Windows app's own.
 copy(path.join(ROOT, 'server', 'lib', 'scan', 'chat.js'), path.join(SRC, 'src', 'content', 'chat.js'));
 // And for what to do after a scam: the password alarm gives the same steps as the site and the Windows app.
