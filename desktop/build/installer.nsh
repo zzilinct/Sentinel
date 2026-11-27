@@ -42,5 +42,7 @@
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" "com.usesentinel.desktop"
     ; Downloaded updates (desktop/src/updater.js cacheDir): over 200 MB once an update has been fetched.
     RMDir /r "$LOCALAPPDATA\sentinel-desktop-updater"
+    ; The copy of the last good installer kept while a new version proves itself (updater.js lastGoodDir).
+    RMDir /r "$LOCALAPPDATA\sentinel-lastgood"
   ${endIf}
 !macroend

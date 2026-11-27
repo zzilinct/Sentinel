@@ -379,4 +379,4 @@ function attach(result, byUrl = {}) {
   return result;
 }
 
-module.exports = { collect, collectAside, addressesOf, attach, _test: { readChromiumProfile, readGeckoProfile, geckoProfiles, geckoSearch, mozLz4, patternOrigin, isManaged, places } };
+module.exports = { collect, collectAside, addressesOf, attach, chromiumProfiles, geckoProfiles, _test: { readChromiumProfile, readGeckoProfile, geckoProfiles, geckoSearch, mozLz4, patternOrigin, isManaged, places } };

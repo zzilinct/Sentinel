@@ -29,8 +29,9 @@ const os = require('os');
 const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 const { summarize, analyze } = require('./downloads');
+const arrival = require('./arrival');
 
-const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
+const { PROGRAM } = arrival;   // the files that can run or start something: one list, here and for what is unpacked
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2000;
 const PERSIST_EVERY_MS = 60 * 1000;          // the poll, only while Run key changes cannot be heard
@@ -104,7 +105,9 @@ function folders() {
     { label: 'Downloads', dir: opts.downloads },
     // Windows' own idea of the Desktop: OneDrive often moves it out of the home folder.
     { label: 'Desktop', dir: opts.desktop || path.join(home, 'Desktop') },
-    { label: 'Startup', dir: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup') }
+    { label: 'Startup', dir: path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup'), flat: true },
+    // Where a browser is set to save, when that is not Downloads (arrival.saveFolders).
+    ...((opts.extraFolders && opts.extraFolders()) || []).map((dir) => ({ label: 'Browser downloads', dir }))
   ];
   // Not looked up on the disk here: this runs on the main thread, every sweep and every status, and one check that a
   // folder exists once held it for 4.8 seconds (a busy disk, or a Desktop kept in the cloud). A folder that is not
@@ -124,9 +127,8 @@ async function restart() {
   if (!opts.enabled()) return setState(false, 'Defense: off');
   for (const f of folders()) {
     try {
-      const w = fs.watch(f.dir, { persistent: true }, (event, filename) => filename && schedule(path.join(f.dir, filename)));
-      w.on('error', () => {});
-      watchers.push(w);
+      // With its subfolders, except Startup: what is unpacked there is where the programs people open are found.
+      watchers.push(arrival.watch(f.dir, !f.flat, schedule));
       watched.push(f.label);
     } catch { /* a folder we cannot watch, or not there */ }
   }
@@ -207,7 +209,7 @@ async function sweepOnce() {
 }
 
 function stop(reason, silent) {
-  for (const w of watchers) { try { w.close(); } catch { /* closed */ } }
+  for (const release of watchers) { try { release(); } catch { /* closed */ } }
   watchers = [];
   watched = [];
   clearInterval(persistTimer);

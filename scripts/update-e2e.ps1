@@ -4,10 +4,14 @@
 #                         by itself (a browser in front is no reason to wait for ever), download only what changed (the
 #                         block maps), come back in the tray without taking the browser's place in front, and remove
 #                         the downloaded installer afterwards.
+#   -Broken (with both)   the same feed, but the next version cannot start (a test file in the data folder says so, which
+#                         only a CI run ever writes). A installs it by itself; started by hand, it ends twice; the second
+#                         bad start must put A back from the copy of its own installer, skip the bad version, download
+#                         nothing again, say so once, and leave nothing behind. All inside this runner's own feed.
 #   neither               the release before the latest, started in the tray as Windows starts it at sign-in, must
 #                         update itself to the latest release.
 # Logs go to $Out; exits 1 when a check failed.
-param([string]$Out = 'update-e2e', [int]$Minutes = 20, [string]$Installer = '', [string]$Next = '')
+param([string]$Out = 'update-e2e', [int]$Minutes = 20, [string]$Installer = '', [string]$Next = '', [switch]$Broken)
 $ErrorActionPreference = 'Continue'
 New-Item -ItemType Directory -Force $Out | Out-Null
 $Out = (Resolve-Path $Out).Path
@@ -22,6 +26,8 @@ $data = "$env:APPDATA\Sentinel"
 $cache = "$env:LOCALAPPDATA\sentinel-desktop-updater"
 $local = $Installer -and $Next
 if ($local) {
+  # After the ordinary run on the same machine: nothing of it is left to be mistaken for this run's.
+  if ($Broken) { Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 3; foreach ($p in $data, $cache, "$env:LOCALAPPDATA\sentinel-lastgood") { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue } }
   Start-Process $Installer -ArgumentList '/S' -Wait
   $from = (Get-Item $exe).VersionInfo.ProductVersion
   $want = (Get-Item $Next).VersionInfo.ProductVersion
@@ -42,6 +48,7 @@ if ($local) {
   Start-Sleep 8
   $w = Get-Process msedge -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
   if ($w) { [void][U.W]::ShowWindow($w.MainWindowHandle, 3); [void][U.W]::SetForegroundWindow($w.MainWindowHandle) }
+  if ($Broken) { [IO.File]::WriteAllText("$data\test-fail-boot", $want) }
   Start-Process $exe -ArgumentList '--hidden'
   Start-Sleep 5
   $frontBefore = FrontName
@@ -64,6 +71,47 @@ if ($local) {
   New-Item -ItemType Directory -Force $data | Out-Null
   [IO.File]::WriteAllText("$data\settings.json", '{"openAtLogin":false}')
   Start-Process $exe -ArgumentList '--hidden'
+}
+
+if ($local -and $Broken) {
+  $leaf = Split-Path $Next -Leaf
+  $fetches = { @(Get-Content $feedLog -ErrorAction SilentlyContinue | Where-Object { ($_ -split ' ')[0] -eq $leaf }).Count }
+  $deadline = (Get-Date).AddMinutes($Minutes)
+  # The exe says 1.21.6.0, the app says 1.21.6: both compared without the trailing .0
+  $from = $from -replace '(\.0)+$', ''; $want = $want -replace '(\.0)+$', ''
+  $v = ''; $up = $false; $back = $false; $starts = 0; $still = 0; $before = -1
+  while ((Get-Date) -lt $deadline) {
+    Start-Sleep 10
+    $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion -replace '(\.0)+$', ''
+    $up =[bool](Get-Process Sentinel -ErrorAction SilentlyContinue)
+    $inst = [bool](Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like 'Sentinel-Setup*' })
+    Say "installed $v, running: $up, installer running: $inst, started by hand: $starts"
+    if ($v -eq $want -and $before -lt 0) { $before = & $fetches }
+    if ($v -eq $from -and $up -and $before -ge 0) { $back = $true; break }
+    # Ended and nothing installing, twice in a row: a person starts it again.
+    $still = if ($v -eq $want -and -not $up -and -not $inst) { $still + 1 } else { 0 }
+    if ($still -ge 2 -and $starts -lt 4) { $starts++; $still = 0; Say "starting it by hand, number $starts"; Start-Process $exe -ArgumentList '--hidden' }
+  }
+  Check 'bad-version-installed' ($before -ge 0) "the app installed $want by itself ($before requests for its installer)"
+  Check 'returned' $back "back on $from after $starts start(s) by hand (the second bad start is the one that returns); installed now $v"
+  Check 'second-bad-start' ($starts -eq 2) "started by hand $starts time(s)"
+  # The old installer put back its own feed address (GitHub): point the app at the runner's feed again and start it
+  # again, so its check for updates (20 s after start) meets the bad version here. Told once is checked across both starts.
+  Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 3
+  [IO.File]::WriteAllText((Join-Path (Split-Path $exe) 'resources\app-update.yml'), "provider: generic`nurl: http://127.0.0.1:47930/`nupdaterCacheDirName: sentinel-desktop-updater`nuseMultipleRangeRequest: false`n")
+  Start-Process $exe -ArgumentList '--hidden'
+  Start-Sleep 60
+  $s = try { Get-Content "$data\settings.json" -Raw | ConvertFrom-Json } catch { $null }
+  Check 'skipped' ($s -and $s.skipVersion -eq $want -and $s.rolledBack.to -eq $from) "skipVersion $($s.skipVersion); rolledBack to $($s.rolledBack.to)"
+  Check 'not-downloaded-again' ($before -ge 0 -and (& $fetches) -eq $before) "requests for the bad installer: $before when it installed, $(& $fetches) after the return"
+  $app = Get-Content "$data\logs\app.log" -Raw -ErrorAction SilentlyContinue
+  Check 'told-once' ([regex]::Matches($app, 'notice: Sentinel went back to').Count -eq 1 -and $app -match "not downloading $([regex]::Escape($want))") "the notice was logged once and the update check skipped $want"
+  Check 'nothing-left' (-not (Test-Path "$env:LOCALAPPDATA\sentinel-lastgood")) "the kept installer is removed after the return"
+  if ($server) { Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue }
+  Copy-Item "$data\logs\*.log" $Out -ErrorAction SilentlyContinue
+  Get-Content "$data\logs\app.log" -ErrorAction SilentlyContinue | Select-String 'updat|installing|not running well|returning|notice|not going back|starting Sentinel' | ForEach-Object { Say "  $_" }
+  if ($failed.Count) { Say "failed: $($failed -join ', ')"; exit 1 }
+  exit 0
 }
 
 $t0 = Get-Date

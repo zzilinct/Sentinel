@@ -728,6 +728,50 @@ if ($Part -eq 'use') {
   [void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
   Shot 'recent-downloads'
   Check 'downloads-listed' ($t -match 'No threats found' -and $t -notmatch 'Quarantine|publishers you trust') "Recent downloads: $(($t -replace '\s+', ' ').Substring(0, [Math]::Min(400, ($t -replace '\s+', ' ').Length)))"
+
+  # 3b. Arrival protection reaches what is unpacked and where the browser really saves (desktop/src/arrival.js).
+  # A browser set to save in another folder: Chrome's own settings say so, and Sentinel reads them at start.
+  $saveDir = Join-Path $env:RUNNER_TEMP 'ChromeSaves'; New-Item -ItemType Directory -Force $saveDir | Out-Null
+  $prof = "$env:LOCALAPPDATA\Google\Chrome\User Data\Default"; New-Item -ItemType Directory -Force $prof | Out-Null
+  [IO.File]::WriteAllText("$prof\Preferences", (@{ download = @{ default_directory = $saveDir } } | ConvertTo-Json -Compress))
+  [void](Quit); [void](StartSentinel); Start-Sleep 5
+  [void](Until 60 { (Info 'info()').downloads.active })
+  Check 'arrival-save-folder-read' ((AppLog) -match 'arrival: [1-9]\d* browser save folder') "Chrome's save folder was found in its own settings: $(([regex]::Matches((AppLog), 'arrival: [^\r\n]*') | Select-Object -Last 1).Value)"
+  # The classic route: a zip is downloaded, then unpacked; what is inside is looked at like any download.
+  $zipStage = Join-Path $env:RUNNER_TEMP 'zipstage'; New-Item -ItemType Directory -Force "$zipStage\bin" | Out-Null
+  Copy-Item "$env:WINDIR\System32\notepad.exe" "$zipStage\bin\Zipped tool.exe"; Set-Content "$zipStage\bin\readme.txt" 'Notes'
+  # Scripts unpacked from an archive are the other classic route: harmless ones that only print a greeting.
+  Set-Content "$zipStage\bin\Hello script.bat" "@echo off`r`necho Hello"; Set-Content "$zipStage\bin\Hello script.ps1" "Write-Output 'Hello'"; Set-Content "$zipStage\bin\Hello script.js" "// Hello"
+  Arrive 'Tools.zip' { param($p) [IO.Compression.ZipFile]::CreateFromDirectory($zipStage, $p) }
+  [void](Until 60 { (DlLines 'Tools.zip') -ge 1 })
+  Expand-Archive -LiteralPath (Join-Path $dl 'Tools.zip') -DestinationPath (Join-Path $dl 'Tools') -Force
+  $ok = Until 60 { (DlLines 'Zipped tool.exe') -ge 1 }
+  $r = Recent 'Zipped tool.exe'
+  Check 'arrival-unpacked' ($ok -and $r -and "$($r.folder)" -like '*Tools*') "a program unpacked into a Downloads subfolder: scanned $(DlLines 'Zipped tool.exe') time(s), listed in '$($r.folder)', badge '$($r.badge)'"
+  $scripts = 'Hello script.bat', 'Hello script.ps1', 'Hello script.js'
+  $okScripts = Until 60 { -not ($scripts | Where-Object { (DlLines $_) -lt 1 }) }
+  Check 'arrival-unpacked-scripts' $okScripts "scripts unpacked into a Downloads subfolder: $(($scripts | ForEach-Object { "$_ x$(DlLines $_)" }) -join ', ')"
+  Check 'arrival-unpacked-text-ignored' ((DlLines 'readme.txt') -eq 0) "the text file unpacked beside it was not scanned ($(DlLines 'readme.txt') line(s))"
+  # A file saved where the browser was told to save it.
+  [IO.File]::WriteAllText((Join-Path $saveDir 'Saved elsewhere.txt'), 'Call the dentist on Tuesday.')
+  $ok = Until 60 { (DlLines 'Saved elsewhere.txt') -ge 1 }
+  Check 'arrival-save-folder' ($ok -and (Recent 'Saved elsewhere.txt')) "a file saved in the browser's own folder: scanned $(DlLines 'Saved elsewhere.txt') time(s)"
+  # A large tree of small, unrelated files on the Desktop must cost nothing: no scan, and no processor time beyond what
+  # the same files cost anywhere else. The control is the same 3000 files made in the runner's temp folder, which
+  # Sentinel does not watch; each window is 20 s, with 20 s of rest between them.
+  function Cpu { return (Get-Process Sentinel -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum }
+  function MakeTree($root) { foreach ($d in 1..30) { $dir = Join-Path $root "d$d"; New-Item -ItemType Directory -Force $dir | Out-Null; foreach ($f in 1..100) { [IO.File]::WriteAllText((Join-Path $dir "f$f.txt"), 'x') } } }
+  $control = Join-Path $env:RUNNER_TEMP 'controltree'
+  $rest0 = Cpu; Start-Sleep 20; $cpuRest = (Cpu) - $rest0
+  $c0 = Cpu; MakeTree $control; Start-Sleep 20; $cpuControl = (Cpu) - $c0
+  Start-Sleep 20
+  $desk = Join-Path $env:USERPROFILE 'Desktop\bigtree'
+  $scansBefore = ([regex]::Matches((AppLog), 'download scanned:')).Count
+  $d0 = Cpu; MakeTree $desk; Start-Sleep 20; $cpuDesk = (Cpu) - $d0
+  $scansAfter = ([regex]::Matches((AppLog), 'download scanned:')).Count
+  $extra = $cpuDesk - $cpuControl
+  Check 'arrival-big-tree-quiet' ($scansAfter -eq $scansBefore -and $extra -lt 1.5) ("3000 small files: {0} scans; processor time across Sentinel in 20 s: {1:N2} s at rest, {2:N2} s with the files made in an unwatched folder, {3:N2} s on the Desktop (the watch adds {4:N2} s)" -f ($scansAfter - $scansBefore), $cpuRest, $cpuControl, $cpuDesk, $extra)
+  Remove-Item $desk, $control -Recurse -Force -ErrorAction SilentlyContinue
   HideApp
 
   # 4. Chat safety on the Discord and Roblox stand-ins (Chrome under their names), on, then off.

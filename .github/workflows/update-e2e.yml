@@ -53,6 +53,11 @@ jobs:
         run: |
           if ($env:RELEASES -eq 'true') { ./scripts/update-e2e.ps1 -Out update-e2e }
           else { ./scripts/update-e2e.ps1 -Out update-e2e -Installer (Get-ChildItem desktop/dist-now/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Next (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName }
+      # The same two builds again, but the second cannot start: the app must put the first back (feed on the runner only).
+      - name: A build that cannot start is returned from
+        if: env.RELEASES != 'true' && !cancelled()
+        shell: powershell
+        run: ./scripts/update-e2e.ps1 -Out update-e2e/broken -Broken -Installer (Get-ChildItem desktop/dist-now/Sentinel-Setup-*.exe | Select-Object -First 1).FullName -Next (Get-ChildItem desktop/dist/Sentinel-Setup-*.exe | Select-Object -First 1).FullName
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
