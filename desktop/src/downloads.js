@@ -16,13 +16,16 @@ const crypto = require('crypto');
 const { Worker } = require('worker_threads');
 const { scanPath, END_BYTES } = require('../shared/filescan');
 const source = require('./source');
+const arrival = require('./arrival');
+
+// Inside a folder that was unpacked or is not Downloads itself only programs reach this module (arrival.js decides).
 
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SIGNABLE = /\.(exe|msi|msix|msixbundle|appx|appxbundle)$/i;
 const SETTLE_MS = 2500;
 
 let opts = null;
-let watcher = null;
+let releases = [];           // arrival.watch's way of stopping, one per watched folder
 let state = { active: false, reason: 'Starting' };
 const timers = new Map();
 const recent = [];           // newest first, max 50
@@ -55,18 +58,23 @@ async function restart() {
   }
   if (mine !== generation) return;
   try {
-    watcher = fs.watch(opts.folder, { persistent: true }, (event, filename) => filename && schedule(filename));
-    watcher.on('error', () => setState(false, 'Cannot watch the Downloads folder'));
+    releases.push(arrival.watch(opts.folder, true, schedule, () => setState(false, 'Cannot watch the Downloads folder')));
     setState(true, null);
   } catch {
     setState(false, 'Cannot watch the Downloads folder');
+    return;
+  }
+  // Where the browsers are set to save, when that is not Downloads (read from their own settings, arrival.saveFolders).
+  for (const dir of (opts.extraFolders && opts.extraFolders()) || []) {
+    try { releases.push(arrival.watch(dir, true, schedule)); } catch { /* gone: Downloads is still watched */ }
   }
 }
 
 let retryTimer = null;
 function stop(reason, silent) {
   clearTimeout(retryTimer);
-  if (watcher) { watcher.close(); watcher = null; }
+  for (const release of releases) release();
+  releases = [];
   for (const t of timers.values()) clearTimeout(t);
   timers.clear();
   if (!silent) setState(false, reason ? `Download protection: ${reason.toLowerCase()}` : 'Download protection: off');
@@ -78,9 +86,9 @@ function setState(active, reason) {
 }
 
 /** Wait until the file stops growing before scanning it. */
-function schedule(filename) {
+function schedule(full) {
+  const filename = path.basename(full);
   if (PARTIAL.test(filename) || filename.startsWith('.') || filename.startsWith('~$')) return;
-  const full = path.join(opts.folder, filename);
   clearTimeout(timers.get(full));
   timers.set(full, setTimeout(() => settle(full, -1), SETTLE_MS));
 }

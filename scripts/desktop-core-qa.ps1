@@ -728,6 +728,40 @@ if ($Part -eq 'use') {
   [void](Cdp '127.0.0.1:4782' "(document.getElementById('downloads').scrollIntoView(), 1)"); Start-Sleep 1
   Shot 'recent-downloads'
   Check 'downloads-listed' ($t -match 'No threats found' -and $t -notmatch 'Quarantine|publishers you trust') "Recent downloads: $(($t -replace '\s+', ' ').Substring(0, [Math]::Min(400, ($t -replace '\s+', ' ').Length)))"
+
+  # 3b. Arrival protection reaches what is unpacked and where the browser really saves (desktop/src/arrival.js).
+  # A browser set to save in another folder: Chrome's own settings say so, and Sentinel reads them at start.
+  $saveDir = Join-Path $env:RUNNER_TEMP 'ChromeSaves'; New-Item -ItemType Directory -Force $saveDir | Out-Null
+  $prof = "$env:LOCALAPPDATA\Google\Chrome\User Data\Default"; New-Item -ItemType Directory -Force $prof | Out-Null
+  [IO.File]::WriteAllText("$prof\Preferences", (@{ download = @{ default_directory = $saveDir } } | ConvertTo-Json -Compress))
+  [void](Quit); [void](StartSentinel); Start-Sleep 5
+  [void](Until 60 { (Info 'info()').downloads.active })
+  Check 'arrival-save-folder-read' ((AppLog) -match 'arrival: [1-9]\d* browser save folder') "Chrome's save folder was found in its own settings: $(([regex]::Matches((AppLog), 'arrival: [^\r\n]*') | Select-Object -Last 1).Value)"
+  # The classic route: a zip is downloaded, then unpacked; what is inside is looked at like any download.
+  $zipStage = Join-Path $env:RUNNER_TEMP 'zipstage'; New-Item -ItemType Directory -Force "$zipStage\bin" | Out-Null
+  Copy-Item "$env:WINDIR\System32\notepad.exe" "$zipStage\bin\Zipped tool.exe"; Set-Content "$zipStage\bin\readme.txt" 'Notes'
+  Arrive 'Tools.zip' { param($p) [IO.Compression.ZipFile]::CreateFromDirectory($zipStage, $p) }
+  [void](Until 60 { (DlLines 'Tools.zip') -ge 1 })
+  Expand-Archive -LiteralPath (Join-Path $dl 'Tools.zip') -DestinationPath (Join-Path $dl 'Tools') -Force
+  $ok = Until 60 { (DlLines 'Zipped tool.exe') -ge 1 }
+  $r = Recent 'Zipped tool.exe'
+  Check 'arrival-unpacked' ($ok -and $r -and "$($r.folder)" -like '*Tools*') "a program unpacked into a Downloads subfolder: scanned $(DlLines 'Zipped tool.exe') time(s), listed in '$($r.folder)', badge '$($r.badge)'"
+  Check 'arrival-unpacked-text-ignored' ((DlLines 'readme.txt') -eq 0) "the text file unpacked beside it was not scanned ($(DlLines 'readme.txt') line(s))"
+  # A file saved where the browser was told to save it.
+  [IO.File]::WriteAllText((Join-Path $saveDir 'Saved elsewhere.txt'), 'Call the dentist on Tuesday.')
+  $ok = Until 60 { (DlLines 'Saved elsewhere.txt') -ge 1 }
+  Check 'arrival-save-folder' ($ok -and (Recent 'Saved elsewhere.txt')) "a file saved in the browser's own folder: scanned $(DlLines 'Saved elsewhere.txt') time(s)"
+  # A large tree of small, unrelated files on the Desktop must cost nothing: no scan, and little processor time.
+  $desk = Join-Path $env:USERPROFILE 'Desktop\bigtree'
+  $scansBefore = ([regex]::Matches((AppLog), 'download scanned:')).Count
+  $cpuBefore = (Get-Process Sentinel -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+  foreach ($d in 1..30) { $dir = Join-Path $desk "d$d"; New-Item -ItemType Directory -Force $dir | Out-Null; foreach ($f in 1..100) { [IO.File]::WriteAllText((Join-Path $dir "f$f.txt"), 'x') } }
+  Start-Sleep 20
+  $cpuNow = (Get-Process Sentinel -ErrorAction SilentlyContinue | Measure-Object CPU -Sum).Sum
+  $cpuBurst = $cpuNow - $cpuBefore
+  $scansAfter = ([regex]::Matches((AppLog), 'download scanned:')).Count
+  Check 'arrival-big-tree-quiet' ($scansAfter -eq $scansBefore -and $cpuBurst -lt 3) ("3000 small files created on the Desktop: {0} scans, {1:N2} s of processor time across Sentinel in the 20 s after (it was {2:N1} s before)" -f ($scansAfter - $scansBefore), $cpuBurst, $cpuBefore)
+  Remove-Item $desk -Recurse -Force -ErrorAction SilentlyContinue
   HideApp
 
   # 4. Chat safety on the Discord and Roblox stand-ins (Chrome under their names), on, then off.

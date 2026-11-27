@@ -28,6 +28,7 @@ const overlay = require('./overlay');
 const chatwatch = require('./chatwatch');
 const chatoverlay = require('./chatoverlay');
 const updater = require('./updater');
+const arrival = require('./arrival');
 const models = require('./models');
 const clipwatch = require('./clipwatch');
 const remoteguard = require('./remoteguard');
@@ -222,6 +223,7 @@ function runPowerShell(script, timeout = 15000) {
 // Found unfinished at the next start, with no Windows restart or shutdown since, Sentinel was ended without
 // the PIN (from Task Manager, or a crash), and the parent's record says when. Only times are written.
 const runningFile = () => path.join(app.getPath('userData'), 'running');
+let lastRunUnclean = false;   // the run before this one ended without quitting (updater.js: a bad update is returned from)
 const heartbeatFile = () => path.join(app.getPath('userData'), 'parent-lock-heartbeat.json');
 function heartbeat(clean = false) {
   if (!lock || !lock.isSet()) return;
@@ -427,6 +429,7 @@ function showError(message) {
   // Try again without being asked: 15 s, 30 s, 60 s, then every two minutes.
   const wait = [15, 30, 60][retryCount] || 120;
   const first = retryCount === 0;
+  if (first) updater.unhealthy('the scanner did not start');
   retryCount++;
   clearTimeout(retryTimer);
   retryTimer = setTimeout(() => boot(), wait * 1000);
@@ -931,6 +934,7 @@ function updateItem(up) {
   if (up.status === 'ready') return { label: `Restart to update to ${up.version}`, click: () => updater.install() };
   if (up.status === 'downloading') return { label: `Downloading update${up.version ? ` ${up.version}` : ''}${Number.isFinite(up.progress) ? ` (${up.progress}%)` : ''}...`, enabled: false };
   if (up.status === 'checking') return { label: 'Checking for updates...', enabled: false };
+  if (up.status === 'current' && up.skipped) return { label: `Sentinel ${v} is up to date (${up.skipped} did not run well here and is skipped)`, click: () => updater.check() };
   if (up.status === 'current') return { label: `Sentinel ${v} is up to date (check again)`, click: () => updater.check() };
   if (up.status === 'error') return { label: `Check for updates (the last check did not finish)`, click: () => updater.check() };
   return { label: `Check for updates (Sentinel ${v})`, click: () => updater.check() };
@@ -1994,8 +1998,14 @@ async function boot() {
     } catch { /* nothing to clean */ }
   }
 
+  // Where the browsers are set to save, when it is not Downloads: read once from their own settings, on this computer
+  // (arrival.js). Downloads, Desktop and these are watched with their subfolders, so an unpacked archive is looked at.
+  const saveFolders = await Promise.race([arrival.saveFolders({ exclude: [app.getPath('downloads'), app.getPath('desktop')] }), new Promise((r) => setTimeout(() => r([]), 3000).unref())]);
+  appLog(`arrival: ${saveFolders.length} browser save folder(s) besides Downloads and Desktop`);
+
   defense.init({
     api: apiCall,
+    extraFolders: () => saveFolders,
     downloads: app.getPath('downloads'),
     desktop: app.getPath('desktop'),
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
@@ -2018,6 +2028,7 @@ async function boot() {
 
   downloads.init({
     origin: ORIGIN,
+    extraFolders: () => saveFolders,
     api: apiCall,
     folder: app.getPath('downloads'),
     quarantineDir: path.join(app.getPath('userData'), 'quarantine'),
@@ -2199,7 +2210,8 @@ app.whenReady().then(() => {
   // A run that ended without quitting (Windows shutting down, Task Manager, or a crash) left nothing in the log at all.
   step('last run', () => {
     const fsx = require('fs');
-    if (fsx.existsSync(runningFile())) appLog('the last run did not quit normally (Windows shut down, it was ended from Task Manager, or it crashed)');
+    lastRunUnclean = fsx.existsSync(runningFile());
+    if (lastRunUnclean) appLog('the last run did not quit normally (Windows shut down, it was ended from Task Manager, or it crashed)');
     fsx.writeFileSync(runningFile(), String(Date.now()));
   });
   step('parent lock', () => { checkHeartbeat().catch(() => {}); setInterval(() => heartbeat(), 60 * 1000).unref(); });
@@ -2219,6 +2231,10 @@ app.whenReady().then(() => {
   step('updater', () => updater.init({
     store,
     log: appLog,
+    unclean: lastRunUnclean,
+    healthy: () => Boolean(tray && ORIGIN),
+    busy: () => fullscreenInFront(process.platform === 'win32'),
+    onRolledBack: (r) => appLog(`notice: Sentinel went back to ${r.to}; ${r.from} did not run well here`) || notify(`Sentinel went back to ${r.to}`, `${r.from} did not run well on this computer, so Sentinel returned to ${r.to} and will not install ${r.from}. A newer version will be installed as usual.`),
     onChange: (s) => {
       // One line per change of state, so an update that never arrives can be explained.
       if (s.status !== lastUpdateStatus) { lastUpdateStatus = s.status; appLog(`updater: ${s.status}${s.version ? ` ${s.version}` : ''}${s.error ? ` (${s.error})` : ''}`); }
@@ -2235,6 +2251,13 @@ app.whenReady().then(() => {
   // touch the system's startup items.
   // Re-registered on every start, so the entry always points at the copy that is
   // actually installed (an update or a move must not leave it aimed at an old one).
+  // CI only (update-e2e.ps1 writes this file): the version it names ends at once, as a build that cannot start would,
+  // unless it is about to return to the last good version. The file never exists on a person's computer.
+  step('test build', () => {
+    let bad = '';
+    try { bad = require('fs').readFileSync(path.join(app.getPath('userData'), 'test-fail-boot'), 'utf8').trim(); } catch { /* the usual case */ }
+    if (bad === app.getVersion() && !updater.rollingBack()) app.exit(3);
+  });
   step('login item', () => { if (app.isPackaged) setOpenAtLogin(store.get('openAtLogin', true)); });
   step('right-click menu', () => { if (app.isPackaged) setScanMenu(store.get('scanMenu', true)); });
   step('background priority', () => {

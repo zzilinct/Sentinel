@@ -46,7 +46,7 @@ let sessionEnding = false; // Windows is signing out or shutting down: no instal
 
 const log = (text) => { if (hooks.log) hooks.log(`updater: ${text}`); };
 
-function status() { return { ...state, current: app.getVersion() }; }
+function status() { return { ...state, current: app.getVersion(), skipped: skip() }; }
 
 function set(patch) {
   state = { ...state, ...patch };
@@ -108,6 +108,91 @@ function tidy(reason, again = true) {
   }
 }
 
+/**
+ * The way back from a bad update. Just before an update's installer runs, the installer of the version that is
+ * running (the installer keeps it as installer.exe, see the top of this file) is copied to LOCALAPPDATA\sentinel-lastgood
+ * and recorded as `updateGuard`. If the new version then ends without quitting (or its scanner does not start) on two
+ * starts, the copy is run again, the bad version is remembered as `skipVersion` (never downloaded again; a newer one
+ * is) and one notice is shown at the next start. Once per version, nothing is downloaded, and the copy is deleted when
+ * the new version has been up and healthy for 10 minutes.
+ * ponytail: the copy is trusted by size and time of change, as the downloaded installer is. No hash of 100+ MB.
+ */
+const HEALTHY_AFTER_MS = 10 * 60 * 1000;
+let rolling = false;
+
+function lastGoodDir() { return path.join(process.env.LOCALAPPDATA || app.getPath('temp'), 'sentinel-lastgood'); }
+function skip() { return (hooks.store && hooks.store.get('skipVersion', null)) || null; }
+/** The installer that just ran can still hold its file for a few seconds (EPERM, as tidy() meets): tried again half a minute later. */
+function dropLastGood(again = true) {
+  try { fs.rmSync(lastGoodDir(), { recursive: true, force: true }); } catch { if (again) setTimeout(() => dropLastGood(false), 30 * 1000).unref(); }
+}
+function dropGuard() {
+  if (hooks.store) hooks.store.set('updateGuard', undefined);
+  dropLastGood();
+}
+
+async function keepLastGood(bad) {
+  const good = app.getVersion();
+  const file = path.join(lastGoodDir(), `Sentinel-Setup-${good}.exe`);
+  try {
+    fs.rmSync(lastGoodDir(), { recursive: true, force: true });
+    fs.mkdirSync(lastGoodDir(), { recursive: true });
+    await fs.promises.copyFile(path.join(cacheDir(), 'installer.exe'), file);
+    hooks.store.set('updateGuard', { good, bad, file, ...stamp(file), fails: 0 });
+  } catch (err) {
+    log(`no way back from ${bad} was kept (${err.message}); the update goes on`);
+  }
+}
+
+function reviewGuard() {
+  const store = hooks.store;
+  const rb = store.get('rolledBack', null);
+  if (rb && !rb.told && rb.to === app.getVersion()) {
+    store.set('rolledBack', { ...rb, told: true });
+    if (hooks.onRolledBack) hooks.onRolledBack(rb);
+  }
+  const g = store.get('updateGuard', null);
+  if (!g) { dropLastGood(); return; }   // nothing to watch: a way back that was used leaves its copy to be removed
+  if (g.bad !== app.getVersion()) { dropGuard(); return; }   // the update did not take, or another version is running
+  if (hooks.unclean) unhealthy('the last run of this version did not quit');
+  if (rolling) return;
+  setTimeout(() => {
+    if (hooks.healthy && hooks.healthy()) { log(`${g.bad} has been healthy for 10 minutes; the way back is no longer kept`); dropGuard(); } else unhealthy('not healthy after 10 minutes');
+  }, HEALTHY_AFTER_MS).unref();
+}
+
+/** One bad start of the version that was just installed. The second one returns to the last good version. */
+function unhealthy(why) {
+  const g = hooks.store && hooks.store.get('updateGuard', null);
+  if (!g || g.bad !== app.getVersion() || rolling) return;
+  g.fails += 1;
+  hooks.store.set('updateGuard', g);
+  log(`${g.bad} is not running well (${why}): bad start ${g.fails} of 2`);
+  if (g.fails >= 2) rollBack(g);
+}
+
+function rollBack(g) {
+  const store = hooks.store;
+  const done = (why) => { rolling = false; log(`not going back to ${g.good}: ${why}`); dropGuard(); };
+  const prior = store.get('rolledBack', null);
+  if (prior && prior.from === g.bad) return done('that version was already returned from once');
+  rolling = true;
+  const go = async () => {
+    // Not while a game, video or presentation is full screen: the installer restarts Sentinel. Asked again in a minute (the helper that knows may not be up yet).
+    if (hooks.busy && await hooks.busy()) { setTimeout(go, 60 * 1000).unref(); return; }
+    const now = stamp(g.file);
+    if (now.size !== g.size || now.mtimeMs !== g.mtimeMs) return done('the kept installer is missing or changed');
+    store.set('skipVersion', g.bad);
+    store.set('rolledBack', { from: g.bad, to: g.good, at: Date.now() });
+    if (pinned() === g.bad) store.set('modelPin', undefined);
+    store.set('updateGuard', undefined);
+    log(`returning to ${g.good}: ${g.bad} did not run well on this computer`);
+    const r = await installFile({ version: g.good, file: g.file, hidden: true, rollback: true });
+    if (!r.ok) done(r.error);
+  };
+  go().catch((err) => done(err.message));
+}
+
 /** What happened to the install we started last time? */
 function reviewLastAttempt() {
   const attempt = hooks.store && hooks.store.get('updateAttempt', null);
@@ -137,8 +222,9 @@ function init(options) {
     return;
   }
   reviewLastAttempt();
-  // A chosen model (models.js) is kept: newer versions are still looked for and shown, but not downloaded.
-  autoUpdater.autoDownload = !pinned();
+  reviewGuard();
+  // Downloads start below, so a version that is pinned (models.js) or skipped (it did not run well here) is not fetched.
+  autoUpdater.autoDownload = false;
   // Sentinel installs on quit itself (see install()); electron-updater's own quit-install reads the stale record.
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
@@ -147,7 +233,13 @@ function init(options) {
   autoUpdater.logger = { info: said, warn: () => {}, error: said, debug: () => {} };
 
   autoUpdater.on('checking-for-update', () => set({ status: 'checking', error: null }));
-  autoUpdater.on('update-available', (info) => set(pinned() ? { status: 'pinned', version: info.version, pinned: pinned() } : { status: 'downloading', version: info.version }));
+  autoUpdater.on('update-available', (info) => {
+    // A chosen model (models.js) is kept: newer versions are still looked for and shown, but not downloaded.
+    if (pinned()) { set({ status: 'pinned', version: info.version, pinned: pinned() }); return; }
+    if (info.version === skip()) { log(`not downloading ${info.version}: it did not run well on this computer`); set({ status: 'current', checkedAt: Date.now() }); return; }
+    set({ status: 'downloading', version: info.version });
+    autoUpdater.downloadUpdate().catch(() => {});   // a failure arrives as the 'error' event below
+  });
   autoUpdater.on('update-not-available', () => set({ status: 'current', checkedAt: Date.now() }));
   autoUpdater.on('download-progress', (p) => set({ status: 'downloading', progress: Math.round(p.percent) }));
   autoUpdater.on('update-downloaded', async (info) => {
@@ -216,13 +308,13 @@ function stamp(file) {
 }
 
 /** Run a model's installer that models.js downloaded and checked, the same way as an update. */
-function installFile({ version, file }) {
+function installFile({ version, file, hidden = false, rollback = false }) {
   if (installing) return Promise.resolve({ ok: false, error: 'An install is already running' });
   downloaded = { version, file, ...stamp(file) };
-  return install({ relaunch: true });
+  return install({ relaunch: true, hidden, rollback });
 }
 
-async function install({ relaunch = true, hidden = false } = {}) {
+async function install({ relaunch = true, hidden = false, rollback = false } = {}) {
   if (!downloaded || installing) return { ok: false, error: 'No update is ready' };
   const { version, file, size, mtimeMs } = downloaded;
   const now = stamp(file);
@@ -234,6 +326,7 @@ async function install({ relaunch = true, hidden = false } = {}) {
     return { ok: false, error: 'changed' };
   }
   installing = true;
+  if (!rollback && hooks.store) await keepLastGood(version);
   // Silent, into this copy's own folder. /D= must be the last argument and must not be quoted.
   const args = ['--updated', '/S'];
   if (relaunch) args.push('--force-run');
@@ -255,4 +348,4 @@ async function install({ relaunch = true, hidden = false } = {}) {
   return { ok: true };
 }
 
-module.exports = { init, check, install, installFile, status, pinned, cacheDir, hiddenMarker, _test: { newer, tidy, clearCache } };
+module.exports = { init, check, install, installFile, status, pinned, cacheDir, hiddenMarker, unhealthy, rollingBack: () => rolling, _test: { newer, tidy, clearCache, keepLastGood, reviewGuard, unhealthy, lastGoodDir } };
