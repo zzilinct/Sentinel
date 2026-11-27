@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+require('../desktop/scripts/sync-shared.js');   // desktop/shared is not in git: arrival reads checkup.js, which needs it
 const arrival = require('../desktop/src/arrival');
 
 const { nestedAccepted, savedBy, usable, reset } = arrival._test;
