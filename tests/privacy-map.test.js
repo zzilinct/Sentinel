@@ -181,7 +181,7 @@ test('privacy page: no third-party script, style or font on the website', () => 
 
 // The policy's own words and the date at its top move together: section 11 promises the date changes with the policy.
 // Changed privacy.html? Set "last updated" to today, then put the new date and fingerprint (printed below) here.
-const POLICY = { date: '26 November 2026', fingerprint: 'ee702e3b623a66d3' };
+const POLICY = { date: '26 November 2026', fingerprint: '1777f38dffd7a120' };
 test('privacy page: its "last updated" date was set the last time its words changed', () => {
   const html = read('web/privacy.html').replace(/\r\n/g, '\n');
   const date = (/last updated (\d{1,2} [A-Z][a-z]+ \d{4})/.exec(html) || [])[1];

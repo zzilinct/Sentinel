@@ -80,7 +80,7 @@ test('Geist and Geist Mono are cut to the letters Sentinel shows, and never lose
     for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
       const rel = `${dir}/${e.name}`;
       if (e.isDirectory()) { if (!/node_modules|vendor|models|img|downloads|fonts/.test(e.name)) walk(rel); continue; }
-      if (!/\.(html|js|css|json|txt)$/.test(e.name) || /\.min\.js$|^mask3d\.js$|^engine\.js$/.test(e.name)) continue;   // engine.js: the scanner's word lists as data, drawn by nobody
+      if (!/\.(html|js|css|json|txt)$/.test(e.name) || /\.min\.js$|^mask3d\.js$|^engine\.js$|^background\.firefox\.js$/.test(e.name)) continue;   // engine.js, and the Firefox worker built with it inside: the scanner's word lists as data, drawn by nobody
       const text = read(rel);
       for (const ch of text) used.add(ch.codePointAt(0));
       for (const m of text.matchAll(/&([a-z]+);/g)) if (entities[m[1]]) used.add(entities[m[1]]);
