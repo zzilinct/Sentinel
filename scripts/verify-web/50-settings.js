@@ -299,6 +299,26 @@ async function checkSettings() {
     const forward = await phoneState();
     result('settings: on a phone the browser Back button goes from a section to the list, and Forward returns', backed.index && backed.open === '' && forward.open === 'help' && forward.back, { backed, forward });
 
+    // A phone section page opens on its own content, and its last row scrolls clear of the bottom bar: 360 px, default and Larger text.
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 360, height: 740, deviceScaleFactor: 1, mobile: true }, s);
+    const reach = [];
+    for (const text of ['standard', 'larger']) {
+      await evalIn(browser, s, `SentinelLook.set({ text: '${text}' }), true`);
+      for (const sec of SECTIONS) {
+        await open(browser, s, sec);
+        await until(browser, s, ready, 20000);
+        await sleep(500);
+        const r = await evalIn(browser, s, `(() => { const bar = document.querySelector('.side'); const floor = bar && getComputedStyle(bar).position === 'fixed' ? bar.getBoundingClientRect().top : innerHeight;
+          const open = document.querySelector('.set-sec:not([hidden])'); const first = open.querySelector('.set-group__title').nextElementSibling;
+          const startTop = Math.round(first.getBoundingClientRect().top); scrollTo(0, document.documentElement.scrollHeight);
+          const last = [...open.querySelectorAll('.set-row:not(.is-out)')].pop(); const end = Math.round(last.getBoundingClientRect().bottom);
+          scrollTo(0, 0); return { floor: Math.round(floor), startTop, end }; })()`);
+        if (r.startTop > r.floor - 40 || r.end > r.floor + 1) reach.push({ sec, text, ...r });
+      }
+    }
+    await evalIn(browser, s, "SentinelLook.set({ text: 'standard' }), true");
+    result('settings: on a phone every section page starts on the first screen and its last row scrolls clear of the bottom bar (360 px, default and Larger text)', !reach.length, reach);
+
     // The preview is the app: its colour follows the colour chosen, its green never does, and its words follow the text size.
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);
     await goto(browser, s, `${server.base}/app/settings#look`);
