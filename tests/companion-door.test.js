@@ -343,3 +343,16 @@ test('the words say it when Sentinel is not checking everything: paused, never "
   assert.equal(Say.protection({ ...base, account: { signedIn: true, plan: {} }, away: false }).tone, 'on');
   for (const s of [out, away]) assert.doesNotMatch(`${s.title} ${s.line}`, /[—–]|[\u{1F300}-\u{1FAFF}]/u);
 });
+
+test('the block page for a listed site, or for a copy of a brand, asks no scanner: signed out there is none, and a listed address is not sent', async () => {
+  const out = worker({ signedOut: true });
+  await out.ctx.recalled;
+  loadThreatList(out);
+  assert.equal((await out.call('block-real', { url: 'https://listed-only-here.test/a' })).realSite, null);
+  assert.equal((await out.call('block-real', { url: COPY })).realSite.host, 'paypal.com', 'the real site comes from the same rule, on the device');
+  const inn = worker();
+  await inn.ctx.recalled;
+  loadThreatList(inn);
+  await inn.call('block-real', { url: 'https://listed-only-here.test/a' });
+  assert.deepEqual(inn.asked.filter((u) => u.includes('/live/')), [], 'a listed address is not sent to the scanner either');
+});
