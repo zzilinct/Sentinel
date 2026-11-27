@@ -11,7 +11,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const { spawn } = require('child_process');
-const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot, NO_UPGRADE } = require('./_shared');
+const { ROOT, OUT, sleep, result, serveFiles, launch, evalIn, openPage, goto, shot } = require('./_shared');
 
 const BRAND_TITLE = ['Sign in to Pay', 'Pal'].join('');
 const SUSPECT = 'my-notes.pages.dev';     // a free-host name: the address alone scores 10, "suspect"
@@ -44,11 +44,14 @@ async function checkPageShape() {
     const chunks = [];
     for await (const c of req) chunks.push(c);
     const body = Buffer.concat(chunks);
-    sent.push({ method: req.method, path: req.url, body: body.toString('utf8') });
+    const entry = { method: req.method, path: req.url, body: body.toString('utf8'), status: 0 };
+    sent.push(entry);
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' }); res.end(); return; }
     const headers = {};
     for (const h of ['content-type', 'authorization', 'origin', 'accept']) if (req.headers[h]) headers[h] = req.headers[h];
-    const r = await fetch(api + req.url, { method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body });
+    let r;
+    try { r = await fetch(api + req.url, { method: req.method, headers, body: ['GET', 'HEAD'].includes(req.method) ? undefined : body }); } catch (err) { entry.status = `error ${err.message}`; res.writeHead(502); res.end(); return; }
+    entry.status = r.status;
     res.writeHead(r.status, { 'content-type': r.headers.get('content-type') || 'application/json', 'access-control-allow-origin': '*' });
     res.end(Buffer.from(await r.arrayBuffer()));
   });
@@ -59,10 +62,10 @@ async function checkPageShape() {
   const files = await serveFiles({}, { '/signin.html': page(BRAND_TITLE), '/home.html': page('Acme dashboard') });
   const filesPort = new URL(files.base).port;
   const hosts = [SUSPECT, OWN, HONEST, PRIVATE];
-  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')}`, NO_UPGRADE]);
+  const { browser, close } = await launch([`--host-resolver-rules=${hosts.map((h) => `MAP ${h} 127.0.0.1:${filesPort}`).join(',')}`, '--disable-features=HttpsFirstModeIncognito,HttpsUpgrades,HttpsFirstBalancedModeAutoEnable']);
   try {
     if (!token) throw new Error(`the Sentinel server did not start on ${api} (see page-shape-server.log)`);
-    const loaded = await browser.send('Extensions.loadUnpacked', { path: path.join(ROOT, 'extension') });
+    const loaded = await browser.send('Extensions.loadUnpacked', { path: path.join(ROOT, 'extension'), enableInIncognito: true });
     const opt = await openPage(browser);
     await goto(browser, opt.sessionId, `chrome-extension://${loaded.id}/src/options.html`, "typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id");
     const paired = await evalIn(browser, opt.sessionId, `(async () => {
@@ -90,7 +93,7 @@ async function checkPageShape() {
     await shot(browser, a.sessionId, 'page-shape-suspect');
     const body = read ? JSON.parse(batchFor(SUSPECT)[0].body) : null;
     const hint = body && body.hints && Object.values(body.hints)[0];
-    result('page-shape: a free-host page with a password box and a protected brand in its title is read and marked yellow', Boolean(read) && Boolean(mark) && mark.text === '?', { mark, hint });
+    result('page-shape: a free-host page with a password box and a protected brand in its title is read and marked yellow', Boolean(read) && Boolean(mark) && mark.text === '?', { mark, hint, seen: sent.map((r) => `${r.method} ${r.path} ${r.status}`) });
     result('page-shape: what was sent is four facts and nothing else (no title, no text, no form address)',
       Boolean(hint) && JSON.stringify(hint) === JSON.stringify({ facts: { password: true, crossForm: false, frame: false, brand: 'paypal' } }) && body.private === false, { body });
 

@@ -26,9 +26,10 @@ test('the gate goes red on a drop in catches, on a new false alarm, and on a sta
   const fresh = JSON.parse(JSON.stringify(base));
   fresh.honestFalseAlarms.sites.push('https://honest.example/');
   assert.match(gate.compare(fresh, base)[0], /new false alarm/);
-  const fixed = JSON.parse(JSON.stringify(base));
-  fixed.honestFalseAlarms.freehost.pop();
-  assert.match(gate.compare(fixed, base)[0], /fixed, remove from the baseline/);
+  // A known false alarm in the baseline that is no longer flagged must leave it.
+  const withKnown = JSON.parse(JSON.stringify(base));
+  withKnown.honestFalseAlarms.freehost = ['https://known.example/'];
+  assert.match(gate.compare(base, withKnown)[0], /fixed, remove from the baseline/);
 });
 
 // Honest developer sites on free hosts: a project name, a platform preview. Made-up names in the platforms' own shapes.
