@@ -98,12 +98,12 @@ test('home and Live protection call on only what is running: no "Protection is o
   assert.match(page, /st\(!lock && liveOn, lock \|\| 'Off'\)/);
 });
 
-// Settings shows one section at a time (settingsView): five sections, each holding some groups, so a row is on exactly one page.
+// Settings shows one section at a time (settingsView): six sections, each holding some groups, so a row is on exactly one page.
 const sections = [...between('const SETTING_SECTIONS = [', '\n  ];').matchAll(/\['([\w-]+)', '[^']+', '[^']+', \[([^\]]*)\]\]/g)].map((m) => [m[1], [...m[2].matchAll(/'([\w-]+)'/g)].map((g) => g[1])]);
 const rowGroup = Object.fromEntries([...rows.matchAll(/(?:\{|appSwitch\(\{) id: '([\w-]+)',(?: kind: '\w+',)? group: '([\w-]+)'/g)].map((m) => [m[1], m[2]]));
 
 test('settings: every group is on exactly one section page, so every row is reachable from one place', () => {
-  assert.strictEqual(sections.length, 5);
+  assert.strictEqual(sections.length, 6);
   const held = sections.flatMap(([, gs]) => gs);
   assert.deepStrictEqual([...held].sort(), [...groups].sort(), 'each group is in a section, once');
   for (const [id] of sections) assert.ok(groups.includes(id), `section ${id} is also a group, so an old #${id} address still lands`);

@@ -70,11 +70,11 @@ const CHECKLIST = {
   '/app/history': [{ what: 'the figures', sel: '[data-stats]' }, { what: 'the list', sel: '[data-list]' }],
   // Settings shows a section at a time: a phone opens on the list of sections; a hash opens one.
   '/app/settings': [
-    { what: 'find a setting', sel: '.set-find input' }, { what: 'sections on the left', sel: '.set-rail a', n: 5, all: true, only: 'desktop' },
-    { what: 'the list of sections', sel: '.set-index__row', n: 5, all: true, only: 'phone' }
+    { what: 'find a setting', sel: '.set-find input' }, { what: 'sections on the left', sel: '.set-rail a', n: 6, all: true, only: 'desktop' },
+    { what: 'the list of sections', sel: '.set-index__row', n: 6, all: true, only: 'phone' }
   ],
   '/app/settings#look': [
-    { what: 'sections on the left', sel: '.set-rail a', n: 5, all: true, only: 'desktop' }, { what: 'find a setting', sel: '.set-find input' },
+    { what: 'sections on the left', sel: '.set-rail a', n: 6, all: true, only: 'desktop' }, { what: 'find a setting', sel: '.set-find input' },
     { what: 'Appearance group', sel: '[data-set-group="look"]' }, { what: 'preview of the app', sel: '.look-prev', all: true }, { what: 'preview button', sel: '.look-prev .btn--gold' },
     { what: 'preview ring', sel: '.look-prev__ring' }, { what: 'colour coins', sel: '#accent .look__coin', n: 6, all: true },
     { what: 'light and dark choice', sel: '.look__group' }, { what: 'text size choice', sel: '#text-size [data-seg]', n: 3, all: true }

@@ -47,7 +47,7 @@ const ROWS = "[...document.querySelectorAll('[data-set-row]')]";
 const SHOWN = `${ROWS}.filter((r) => !r.classList.contains('is-out')).map((r) => r.id)`;
 /** Opens a section or a row as a link to it would: the address changes and the page answers, with no reload. */
 const open = (browser, s, id) => evalIn(browser, s, `(() => { history.pushState({}, '', '/app/settings#${id}'); dispatchEvent(new PopStateEvent('popstate')); })()`);
-const SECTIONS = ['look', 'protection', 'account', 'data', 'help'];
+const SECTIONS = ['look', 'protection', 'account', 'plan', 'data', 'help'];
 
 async function checkSettings() {
   const server = await startServer('settings');
@@ -155,7 +155,7 @@ async function checkSettings() {
       trust.data.join() === 'download-data,history-data,live-memory,delete-account' && !trust.account.includes('delete-account'), trust);
     // Before launch the mailbox's domain does not exist, so the way to write is the GitHub page, where a message arrives.
     result('settings: Help shows the newest release note and a way to write to us that works today', /New in Sentinel \d+\.\d+\.\d+/.test(trust.note) && /^https:\/\/github\.com\/zzilinct\/Sentinel\/issues/.test(trust.mail), trust);
-    result('settings: the section list names every section, and your sites are listed', home.rail.length === 5 && /Appearance/.test(home.rail[0]) && /Protection/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
+    result('settings: the section list names every section, and your sites are listed', home.rail.length === 6 && /Appearance/.test(home.rail[0]) && /Protection/.test(home.rail[1]) && /mycu\.org/.test(home.sites), home);
     result('settings: nothing scrolls sideways', !wide.length, wide);
 
     /* -------------------------------------------------- saving, at desktop size */
@@ -238,7 +238,7 @@ async function checkSettings() {
     const seen = `(() => { const e = document.getElementById(%ID%); const r = e.getBoundingClientRect(); return { open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), top: Math.round(r.top), h: Math.round(r.height), vh: innerHeight }; })()`;
     // Each address the app, the tray, notifications and the website use, with the section it must open.
     const LINKS = { look: 'look', accent: 'look', motion: 'look', 'simple-view': 'look', 'text-size': 'look', moving: 'look', protection: 'protection', 'chat-safety': 'protection', 'text-safety': 'protection',
-      'my-sites': 'protection', 'exposure-alerts': 'protection', 'week-note': 'protection', guards: 'protection', account: 'account', 'two-factor': 'account', 'parent-lock': 'account', plan: 'account',
+      'my-sites': 'protection', 'exposure-alerts': 'protection', 'week-note': 'protection', guards: 'protection', account: 'account', 'two-factor': 'account', 'parent-lock': 'account', plan: 'plan',
       data: 'data', 'delete-account': 'data', help: 'help', 'whats-new': 'help' };
     for (const [size, [width, height, mobile]] of Object.entries(SIZES)) {
       await browser.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile }, s);
@@ -275,7 +275,7 @@ async function checkSettings() {
     await until(browser, s, ready, 20000);
     const phoneState = () => evalIn(browser, s, "({ open: [...document.querySelectorAll('.set-sec:not([hidden])')].map((x) => x.dataset.setSec).join(), index: !document.querySelector('[data-set-index]').hidden, back: !document.querySelector('[data-set-back]').hidden, hash: location.hash, rows: document.querySelectorAll('.set-index__row').length, railShown: getComputedStyle(document.querySelector('.set-rail')).display !== 'none' })");
     const list = await phoneState();
-    result('settings: a phone opens on the list of five sections, with no section open and no side list', list.index && list.rows === 5 && list.open === '' && !list.back && !list.railShown, list);
+    result('settings: a phone opens on the list of six sections, with no section open and no side list', list.index && list.rows === 6 && list.open === '' && !list.back && !list.railShown, list);
     await shot(browser, s, 'settings-index-phone-dark');
     await evalIn(browser, s, "document.querySelector('.set-index__row[href$=account]').click()");
     await until(browser, s, "location.hash === '#account'", 5000);

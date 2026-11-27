@@ -46,6 +46,7 @@
 .set-index__row svg { flex: none; color: var(--gold-300); }
 .set-index__row:active { background: rgb(var(--ink) / .04); }
 .set-index__row:focus-visible, .set-back:focus-visible { outline: 2px solid var(--gold-300); outline-offset: 2px; border-radius: 4px; }
+@media (max-width: 900px) { .view[data-set-in] .page-title p { display: none; } }
 .set-back { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; margin: 0 0 -2px -6px; padding: 0 10px 0 4px; color: var(--gold-300); font-size: var(--t-ui); }
 .set-back:hover { color: var(--gold-200); }
 
@@ -59,6 +60,11 @@
 .look-prev__page { display: grid; gap: 6px; padding: 16px 18px 18px; }
 .look-prev__page b { font-size: var(--t-text); font-weight: 500; color: var(--text); }
 .look-prev__page p { color: var(--muted); font-size: var(--t-ui); }
+/* The button fades with the rest: its three stops are registered colours, which a gradient on its own cannot be. */
+@property --pv1 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+@property --pv2 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+@property --pv3 { syntax: '<color>'; inherits: false; initial-value: #d6b066; }
+.look-prev .btn--gold { --pv1: var(--gold-200); --pv2: var(--gold-400); --pv3: var(--gold-600); background: linear-gradient(180deg, var(--pv1), var(--pv2) 50%, var(--pv3)); transition: --pv1 .35s, --pv2 .35s, --pv3 .35s; pointer-events: none; }
 .look-prev__row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-top: 6px; }
 .look-prev__ok { display: inline-flex; align-items: center; gap: 7px; color: var(--green); font-size: var(--t-note); font-weight: 500; }
 .look-prev__ok i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); }

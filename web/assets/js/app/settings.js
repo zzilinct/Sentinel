@@ -503,13 +503,14 @@
     ['look', 'Your look'], ['moving', 'Motion'], ['protection', 'Live protection'], ['guards', 'Everyday guards'],
     ['chat', 'Chat and texts'], ['alerts', 'Alerts'], ['lock', 'Parent lock'], ['account', 'Account and security'], ['data', 'Your data'], ['plan', 'Plan and app'], ['help', 'Help']
   ];
-  /* The page shows one section at a time: five of them, each holding some of the groups above. A phone opens on the list
+  /* The page shows one section at a time: six of them, each holding some of the groups above. A phone opens on the list
      of sections and a section is its own page with a way back; a wide screen keeps the list beside the page. A section id
      is also a group id, so every address that ever pointed at a group still lands on it. */
   const SETTING_SECTIONS = [
     ['look', 'Appearance', 'Colour, theme, text size and motion', ['look', 'moving']],
     ['protection', 'Protection', 'Live scanning, everyday guards, chat and alerts', ['protection', 'guards', 'chat', 'alerts']],
-    ['account', 'Account and plan', 'Sign-in, devices, parent lock and your plan', ['account', 'lock', 'plan']],
+    ['account', 'Account and security', 'Your details, password, two-step sign-in, devices and parent lock', ['account', 'lock']],
+    ['plan', 'Plan and app', 'Your plan, AI assistants and app updates', ['plan']],
     ['data', 'Your data', 'What Sentinel keeps, and how to take it or erase it', ['data']],
     ['help', 'Help', 'Questions, what is new and how to reach us', ['help']]
   ];
@@ -1022,6 +1023,8 @@
       back.hidden = finding || wide.matches || !s;
       // The note about the Windows app is the list's and the search's: a section's page starts with its own words.
       if (note) note.hidden = !finding && !wide.matches && Boolean(s);
+      // A phone's section page starts with its own words, not the page's sentence again (settings.css).
+      el.toggleAttribute('data-set-in', !finding && !wide.matches && Boolean(s));
       $$('[data-set-go]', el).forEach((a) => (a.dataset.setGo === s && !finding ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
     }
     const onWide = () => open(section || (wide.matches ? 'look' : ''));
