@@ -10,10 +10,11 @@
  * One watch per folder, shared: Downloads is wanted by both modules and is opened once. A folder is watched with its
  * subfolders on Windows, and everything is decided from the name Windows reports, with no look-up on the disk (one
  * look-up once held the main thread for 4.8 seconds, see defense.js folders()). A file inside a subfolder is passed on
- * only when it is a program that starts by itself when opened (see NESTED), at most 4 folders deep, not in a hidden
- * folder or a node_modules, and at most NESTED_PER_MINUTE a minute: unpacking a large project into Downloads must not
- * start thousands of scans. Libraries (.dll) and scripts (.js) are left out of subfolders: a project unpacks
- * thousands of them, and each one is on its own the file that was named, not the one a person opens.
+ * only when it can run or start something (PROGRAM, the list Defense uses at the top level: programs, installers,
+ * scripts, shortcuts), at most 4 folders deep, not in a hidden folder or a node_modules, and at most
+ * NESTED_PER_MINUTE a minute: unpacking a large project into Downloads must not start thousands of scans. A project
+ * unpacks thousands of libraries and scripts (NOISY), so those share a smaller allowance and can never use up the
+ * one the programs, installers and shortcuts have.
  */
 const fs = require('fs');
 const os = require('os');
@@ -21,7 +22,9 @@ const path = require('path');
 
 const MAX_DEPTH = 4;
 const NESTED_PER_MINUTE = 60;
-const NESTED = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|wsf|hta|jar|cpl|lnk)$/i;
+const NOISY_PER_MINUTE = 20;
+const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
+const NOISY = /\.(dll|js)$/i;
 const SKIPPED = /(^|[\\/])(\.[^\\/]+|node_modules|\$RECYCLE\.BIN)([\\/]|$)/i;
 
 const watches = new Map();   // folder -> { watcher, subs: Set of { onFile, onError } }
@@ -29,11 +32,14 @@ const nestedSeen = new Map();   // relative path -> when it was first counted th
 
 /** True when a file inside a subfolder is worth looking at, and the minute's allowance is not used up. */
 function nestedAccepted(relative, now = Date.now()) {
-  if (!NESTED.test(relative) || SKIPPED.test(relative) || relative.split(/[\\/]/).length - 1 > MAX_DEPTH) return false;
+  if (!PROGRAM.test(relative) || SKIPPED.test(relative) || relative.split(/[\\/]/).length - 1 > MAX_DEPTH) return false;
   for (const [k, t] of nestedSeen) if (now - t >= 60 * 1000) nestedSeen.delete(k);
   // A file being written reports many changes: it counts once.
   if (nestedSeen.has(relative)) return true;
-  if (nestedSeen.size >= NESTED_PER_MINUTE) return false;
+  const noisy = NOISY.test(relative);
+  let count = 0;
+  for (const k of nestedSeen.keys()) if (NOISY.test(k) === noisy) count++;
+  if (count >= (noisy ? NOISY_PER_MINUTE : NESTED_PER_MINUTE)) return false;
   nestedSeen.set(relative, now);
   return true;
 }
@@ -129,4 +135,4 @@ async function saveFolders({ exclude = [], local = process.env.LOCALAPPDATA, roa
   return found.slice(0, 3);
 }
 
-module.exports = { watch, saveFolders, _test: { nestedAccepted, savedBy, usable, reset: () => nestedSeen.clear() } };
+module.exports = { watch, saveFolders, PROGRAM, _test: { nestedAccepted, savedBy, usable, reset: () => nestedSeen.clear() } };

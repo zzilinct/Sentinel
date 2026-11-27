@@ -2234,7 +2234,9 @@ app.whenReady().then(() => {
     unclean: lastRunUnclean,
     healthy: () => Boolean(tray && ORIGIN),
     busy: () => fullscreenInFront(process.platform === 'win32'),
-    onRolledBack: (r) => appLog(`notice: Sentinel went back to ${r.to}; ${r.from} did not run well here`) || notify(`Sentinel went back to ${r.to}`, `${r.from} did not run well on this computer, so Sentinel returned to ${r.to} and will not install ${r.from}. A newer version will be installed as usual.`),
+    onRolledBack: (r) => (r.refused
+      ? appLog(`notice: ${r.from} did not run well here and Sentinel could not safely go back; it will not install ${r.from} again`) || notify(`Sentinel ${r.from} did not run well`, `Sentinel could not safely go back to ${r.to}, so it stays on ${r.from} and will not install it again. A newer version will be installed as usual.`)
+      : appLog(`notice: Sentinel went back to ${r.to}; ${r.from} did not run well here`) || notify(`Sentinel went back to ${r.to}`, `${r.from} did not run well on this computer, so Sentinel returned to ${r.to} and will not install ${r.from}. A newer version will be installed as usual.`)),
     onChange: (s) => {
       // One line per change of state, so an update that never arrives can be explained.
       if (s.status !== lastUpdateStatus) { lastUpdateStatus = s.status; appLog(`updater: ${s.status}${s.version ? ` ${s.version}` : ''}${s.error ? ` (${s.error})` : ''}`); }

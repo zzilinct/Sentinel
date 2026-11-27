@@ -9,6 +9,9 @@ const path = require('path');
 const { EventEmitter } = require('events');
 const Module = require('module');
 
+// Real file reads (the hash) take a few turns of the event loop.
+async function until(f) { for (let i = 0; i < 2000 && !f(); i++) await new Promise((r) => setImmediate(r)); }
+
 function setup(version) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sentinel-rb-'));
   fs.mkdirSync(path.join(dir, 'sentinel-desktop-updater'), { recursive: true });
@@ -58,8 +61,8 @@ test('a bad update: the good installer is kept, the second bad start returns to 
     const file = path.join(b.updater._test.lastGoodDir(), 'Sentinel-Setup-1.0.0.exe');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, 'installer of 1.0.0');
-    const st = fs.statSync(file);
-    b.data.updateGuard = { good: '1.0.0', bad: '1.0.1', file, size: st.size, mtimeMs: st.mtimeMs, fails: 0 };
+    const sha512 = require('crypto').createHash('sha512').update('installer of 1.0.0').digest('base64');
+    b.data.updateGuard = { good: '1.0.0', bad: '1.0.1', file, sha512, fails: 0 };
     let fullscreen = true;
     b.updater.init({ store: b.store, log: (l) => lines.push(l), unclean: true, busy: async () => fullscreen, healthy: () => true });
     assert.equal(b.data.updateGuard.fails, 1);
@@ -70,8 +73,7 @@ test('a bad update: the good installer is kept, the second bad start returns to 
     assert.deepEqual(b.ran, [], 'not while something is full screen');
     fullscreen = false;
     t.mock.timers.tick(60 * 1000);
-    await new Promise((r) => setImmediate(r));
-    await new Promise((r) => setImmediate(r));
+    await until(() => b.ran.length);
     const [ranFile, args] = b.ran[0];
     assert.equal(ranFile, file);
     assert.ok(args.includes('--force-run') && args.includes('/S'));
@@ -102,7 +104,7 @@ test('a version that has been healthy, or an update that did not take, drops the
   try {
     const dir = a.updater._test.lastGoodDir();
     fs.mkdirSync(dir, { recursive: true });
-    a.data.updateGuard = { good: '1.0.0', bad: '1.0.1', file: path.join(dir, 'x.exe'), size: 0, mtimeMs: 0, fails: 0 };
+    a.data.updateGuard = { good: '1.0.0', bad: '1.0.1', file: path.join(dir, 'x.exe'), sha512: '', fails: 0 };
     a.updater.init({ store: a.store, log: () => {} });   // still 1.0.0: the update did not take
     assert.equal(a.data.updateGuard, undefined);
     assert.equal(fs.existsSync(dir), false);
@@ -118,4 +120,27 @@ test('the kept installer of a way back that was used is removed at the next star
     a.updater.init({ store: a.store, log: () => {} });   // no updateGuard: the rollback already cleared it
     assert.equal(fs.existsSync(dir), false);
   } finally { a.done(); }
+});
+
+test('a kept installer that was swapped is never run: the bad version is skipped and the person is told', async () => {
+  const b = setup('1.0.1');
+  try {
+    const file = path.join(b.updater._test.lastGoodDir(), 'Sentinel-Setup-1.0.0.exe');
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, 'installer of 1.0.0');
+    const sha512 = require('crypto').createHash('sha512').update('installer of 1.0.0').digest('base64');
+    const st = fs.statSync(file);
+    b.data.updateGuard = { good: '1.0.0', bad: '1.0.1', file, sha512, size: st.size, mtimeMs: st.mtimeMs, fails: 1 };
+    // Swapped after it was kept, the same length and the same time of change: size and time alone would not see it.
+    fs.writeFileSync(file, 'installer of 9.9.9');
+    fs.utimesSync(file, st.atimeMs / 1000, st.mtimeMs / 1000);
+    const told = [];
+    b.updater.init({ store: b.store, log: () => {}, unclean: true, busy: async () => false, onRolledBack: (r) => told.push(r) });
+    await until(() => told.length);
+    assert.deepEqual(b.ran, [], 'the swapped file was not run');
+    assert.equal(b.data.skipVersion, '1.0.1');
+    assert.equal(told.length, 1);
+    assert.equal(told[0].refused, true);
+    assert.equal(b.updater.rollingBack(), false);
+  } finally { b.done(); }
 });

@@ -115,7 +115,8 @@ function tidy(reason, again = true) {
  * starts, the copy is run again, the bad version is remembered as `skipVersion` (never downloaded again; a newer one
  * is) and one notice is shown at the next start. Once per version, nothing is downloaded, and the copy is deleted when
  * the new version has been up and healthy for 10 minutes.
- * ponytail: the copy is trusted by size and time of change, as the downloaded installer is. No hash of 100+ MB.
+ * Sentinel will run that copy, so its SHA-512 is taken as it is copied and kept in Sentinel's own settings: a copy that
+ * does not match is never run. The bad version is then only skipped, and the person is told it could not be returned from.
  */
 const HEALTHY_AFTER_MS = 10 * 60 * 1000;
 let rolling = false;
@@ -138,7 +139,7 @@ async function keepLastGood(bad) {
     fs.rmSync(lastGoodDir(), { recursive: true, force: true });
     fs.mkdirSync(lastGoodDir(), { recursive: true });
     await fs.promises.copyFile(path.join(cacheDir(), 'installer.exe'), file);
-    hooks.store.set('updateGuard', { good, bad, file, ...stamp(file), fails: 0 });
+    hooks.store.set('updateGuard', { good, bad, file, sha512: await sha512(file), fails: 0 });
   } catch (err) {
     log(`no way back from ${bad} was kept (${err.message}); the update goes on`);
   }
@@ -180,9 +181,18 @@ function rollBack(g) {
   const go = async () => {
     // Not while a game, video or presentation is full screen: the installer restarts Sentinel. Asked again in a minute (the helper that knows may not be up yet).
     if (hooks.busy && await hooks.busy()) { setTimeout(go, 60 * 1000).unref(); return; }
-    const now = stamp(g.file);
-    if (now.size !== g.size || now.mtimeMs !== g.mtimeMs) return done('the kept installer is missing or changed');
+    const same = (await sha512(g.file).catch(() => null)) === g.sha512;
     store.set('skipVersion', g.bad);
+    if (!same) {
+      // Not run, whatever it is: the bad version is only skipped, and the person is told.
+      store.set('updateGuard', undefined);
+      store.set('rolledBack', { from: g.bad, to: g.good, at: Date.now(), told: true, refused: true });
+      log(`not going back to ${g.good}: the kept installer is missing or changed. ${g.bad} will not be installed again`);
+      dropLastGood();
+      rolling = false;
+      if (hooks.onRolledBack) hooks.onRolledBack({ from: g.bad, to: g.good, refused: true });
+      return;
+    }
     store.set('rolledBack', { from: g.bad, to: g.good, at: Date.now() });
     if (pinned() === g.bad) store.set('modelPin', undefined);
     store.set('updateGuard', undefined);

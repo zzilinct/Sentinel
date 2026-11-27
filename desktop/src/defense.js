@@ -31,7 +31,7 @@ const { execFile, spawn } = require('child_process');
 const { summarize, analyze } = require('./downloads');
 const arrival = require('./arrival');
 
-const PROGRAM = /\.(exe|msi|msix|scr|com|pif|bat|cmd|ps1|vbs|vbe|js|jse|wsf|hta|jar|dll|cpl|lnk|reg)$/i;
+const { PROGRAM } = arrival;   // the files that can run or start something: one list, here and for what is unpacked
 const PARTIAL = /\.(crdownload|part|partial|download|tmp|opdownload)$/i;
 const SETTLE_MS = 2000;
 const PERSIST_EVERY_MS = 60 * 1000;          // the poll, only while Run key changes cannot be heard

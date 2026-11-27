@@ -13,8 +13,7 @@ test('inside a subfolder only programs are passed on, not deep, not hidden, and 
   reset();
   assert.equal(nestedAccepted('tools\\setup.exe'), true);
   assert.equal(nestedAccepted('tools/bin/run.bat'), true);
-  assert.equal(nestedAccepted('tools\\lib.dll'), false, 'a library is not the file a person opens');
-  assert.equal(nestedAccepted('tools\\app.js'), false);
+  for (const n of ["run.bat", "run.cmd", "run.ps1", "run.vbs", "run.js", "run.jse", "run.wsf", "run.hta", "setup.msi", "x.scr", "link.lnk", "lib.dll", "x.reg"]) assert.equal(nestedAccepted("tools/" + n), true, n);
   assert.equal(nestedAccepted('tools\\readme.txt'), false);
   assert.equal(nestedAccepted('.cache\\x.exe'), false);
   assert.equal(nestedAccepted('proj\\node_modules\\x\\y.exe'), false);
@@ -25,6 +24,10 @@ test('inside a subfolder only programs are passed on, not deep, not hidden, and 
   assert.equal(nestedAccepted('big\\p60.exe'), false, 'the minute is used up');
   assert.equal(nestedAccepted('big\\p3.exe'), true, 'a file still being written is the same file');
   assert.equal(nestedAccepted('big\\p61.exe', Date.now() + 61 * 1000), true, 'and the next minute starts again');
+  reset();
+  for (let i = 0; i < 20; i++) assert.equal(nestedAccepted(`proj\\l${i}.dll`), true);
+  assert.equal(nestedAccepted('proj\\l20.dll'), false, 'libraries and scripts have a smaller allowance');
+  assert.equal(nestedAccepted('proj\\setup.exe'), true, 'and cannot use up the programs\' allowance');
 });
 
 test('the save folder is read from the browser\'s own settings, and only a custom one', () => {
