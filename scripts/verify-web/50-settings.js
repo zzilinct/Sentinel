@@ -285,11 +285,19 @@ async function checkSettings() {
     await shot(browser, s, 'settings-account-phone-dark');
     await evalIn(browser, s, "document.querySelector('[data-set-back]').click()");
     await until(browser, s, "!location.hash && !document.querySelector('[data-set-index]').hidden", 5000);
+    const listAgain = await phoneState();
+    result('settings: on a phone the link back goes to the list', listAgain.index && listAgain.open === '' && !listAgain.back, listAgain);
+    // The browser's Back button from a section opened off the list returns to the list, and Forward to the section.
+    await evalIn(browser, s, "document.querySelector('.set-index__row[href$=help]').click()");
+    await until(browser, s, "location.hash === '#help'", 5000);
     await evalIn(browser, s, 'history.back()');
-    await until(browser, s, "location.hash === '#account'", 5000);
-    await sleep(400);
-    const again = await phoneState();
-    result('settings: on a phone the way back goes to the list, and the browser Back button returns to the section', again.open === 'account' && again.back && !again.index, again);
+    await until(browser, s, "!location.hash && !document.querySelector('[data-set-index]').hidden", 5000);
+    const backed = await phoneState();
+    await evalIn(browser, s, 'history.forward()');
+    await until(browser, s, "location.hash === '#help'", 5000);
+    await sleep(300);
+    const forward = await phoneState();
+    result('settings: on a phone the browser Back button goes from a section to the list, and Forward returns', backed.index && backed.open === '' && forward.open === 'help' && forward.back, { backed, forward });
 
     // The preview is the app: its colour follows the colour chosen, its green never does, and its words follow the text size.
     await browser.send('Emulation.setDeviceMetricsOverride', { width: 1366, height: 900, deviceScaleFactor: 1, mobile: false }, s);

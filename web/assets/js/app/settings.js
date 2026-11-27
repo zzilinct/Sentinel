@@ -1012,6 +1012,7 @@
     const wide = matchMedia('(min-width: 901px)');
     const index = $('[data-set-index]', el);
     const back = $('[data-set-back]', el);
+    const note = $('.set-app', el);
     let section = sectionOf(location.hash.slice(1)) || (wide.matches ? 'look' : '');
     function open(s) {
       section = s;
@@ -1019,6 +1020,8 @@
       $$('[data-set-sec]', el).forEach((x) => { x.hidden = !finding && x.dataset.setSec !== s; });
       index.hidden = finding || wide.matches || Boolean(s);
       back.hidden = finding || wide.matches || !s;
+      // The note about the Windows app is the list's and the search's: a section's page starts with its own words.
+      if (note) note.hidden = !finding && !wide.matches && Boolean(s);
       $$('[data-set-go]', el).forEach((a) => (a.dataset.setGo === s && !finding ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
     }
     const onWide = () => open(section || (wide.matches ? 'look' : ''));
@@ -1029,7 +1032,8 @@
       const target = id && (SETTINGS.some((r) => r.id === id) || SETTING_GROUPS.some(([g]) => g === id)) ? $(`#${id}`, el) : null;
       if (!target) return;   // an unknown or old address: the page as it is
       if (!find.value.trim() && sectionOf(id) !== section) open(sectionOf(id));
-      if (id === sectionOf(id)) return;   // a section's own address is its top: nothing to scroll to
+      // A section's own address is its top (the browser would otherwise leave the page at that group, the title above it out of sight).
+      if (id === sectionOf(id)) { scrollTo({ top: 0, behavior: glide() }); return; }
       target.scrollIntoView({ block: 'start', behavior: glide() });
       if (!found || !target.matches('.set-row')) return;
       target.classList.remove('is-found');

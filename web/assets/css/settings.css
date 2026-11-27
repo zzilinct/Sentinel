@@ -35,7 +35,7 @@
 .set-group { scroll-margin-top: 84px; }
 .set-group__title { margin-top: 44px; padding-bottom: 12px; border-bottom: 1px solid var(--line-gold); font-size: var(--t-title); font-weight: 500; color: var(--text); }
 .set-sec > .set-group:first-child .set-group__title { margin-top: 18px; }
-.set-sec[hidden], .set-index[hidden], .set-back[hidden] { display: none; }
+.set-sec[hidden], .set-index[hidden], .set-back[hidden], .set-app[hidden] { display: none; }
 
 /* A phone with no section chosen: the sections as one list, a press opens its page. The way back is a link above it. */
 .set-index { display: grid; border-top: 1px solid var(--line-gold); }
