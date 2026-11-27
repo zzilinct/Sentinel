@@ -78,6 +78,12 @@ test('the Firefox package is an event page with nothing Chromium-only in it', ()
   const bundle = fs.readFileSync(path.join(ROOT, 'desktop', 'companion-firefox', 'src', 'background.firefox.js'), 'utf8');
   assert.doesNotMatch(bundle, /^\s*(import|export)\s/m, 'a classic script cannot import or export');
   assert.doesNotThrow(() => new vm.Script(bundle, { filename: 'background.firefox.js' }), 'it parses as a classic script');
+  // Every module background.js imports is in the flattened script, or Firefox stops at the first name it lacks (run 45921431220).
+  const background = fs.readFileSync(path.join(SRC, 'background.js'), 'utf8');
+  for (const [, file] of background.matchAll(/^import\s+[^;]*from\s+'\.\/lib\/([a-z]+)\.js';/gm)) {
+    const exported = [...fs.readFileSync(path.join(SRC, 'lib', `${file}.js`), 'utf8').matchAll(/^export\s+(?:async\s+)?(?:const|let|function|class)\s+(\w+)/gm)].map((m) => m[1]);
+    for (const name of exported.slice(0, 1)) assert.match(bundle, new RegExp(`(const|let|function|class)\\s+${name}\\b`), `lib/${file}.js is not in the Firefox bundle`);
+  }
   assert.doesNotMatch(strip(bundle), /\bchrome\.(runtime|storage|tabs|action|alarms)\b/);
   assert.ok(!fs.existsSync(path.join(ROOT, 'desktop', 'companion-firefox', 'src', 'background.js')), 'the service worker is not shipped to Firefox');
 });
