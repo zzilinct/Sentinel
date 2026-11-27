@@ -73,7 +73,14 @@
     return { tone: 'on', word: 'On', title: 'Sentinel is on in this browser', line: 'Pages are checked as they open. Sites on the confirmed list are stopped before they load.' };
   }
 
-  const api = { page, protection };
+  /** "name@example.com · Pro plan": a part the account does not have is left out, never printed as "undefined". */
+  function who(account) {
+    const user = (account && account.user) || {};
+    const plan = (account && account.plan) || {};
+    return [user.email, plan.name ? `${plan.name} plan` : ''].filter((part) => typeof part === 'string' && part.trim()).join(' · ') || 'Signed in';
+  }
+
+  const api = { page, protection, who };
   if (typeof module === 'object' && module.exports) module.exports = api;
   else globalThis.SentinelSay = Object.freeze(api);
 })();

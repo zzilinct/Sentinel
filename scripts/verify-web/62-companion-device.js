@@ -144,6 +144,8 @@ async function checkCompanionDevice() {
     console.log(`      state after the scanner went: ${JSON.stringify(awayState)}`);
     const awayHead = await evalIn(browser, opt.sessionId, "document.getElementById('headline').textContent + ' | ' + document.getElementById('headLine').textContent");
     result('companion-device: the settings headline says Sentinel cannot reach its scanner, never that it is on', /cannot reach its scanner/.test(awayHead) && /Pages are checked on this device only/.test(awayHead) && !/\bis on\b/.test(awayHead), { awayHead });
+    const awayText = await evalIn(browser, opt.sessionId, 'document.body.innerText');
+    result('companion-device: no "undefined" or "null" text anywhere on the settings page, with an account that has no email or plan name', !/undefined|\bnull\b|NaN/.test(awayText), { sub: awayText.split('\n').filter((l) => /plan|Signed in|@/.test(l)).slice(0, 3) });
     for (const scheme of ['dark', 'light']) {
       await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: scheme }] }, opt.sessionId);
       await sleep(300);

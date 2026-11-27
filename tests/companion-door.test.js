@@ -368,3 +368,11 @@ test('signed in, the scanner stops answering: the worker says so in its state, a
   await up.ctx.recalled;
   assert.equal((await up.call('state')).away, false, 'a scanner that answers is not away');
 });
+
+test('the settings sub-line never prints "undefined", whatever the account holds', () => {
+  assert.equal(Say.who({ user: { email: 'a@b.test' }, plan: { name: 'Pro' } }), 'a@b.test · Pro plan');
+  assert.equal(Say.who({ user: { email: 'a@b.test' }, plan: {} }), 'a@b.test');
+  assert.equal(Say.who({ user: { name: 'Test' }, plan: { id: 'free' } }), 'Signed in');
+  assert.equal(Say.who({ plan: { name: 'Free' } }), 'Free plan');
+  assert.equal(Say.who(null), 'Signed in');
+});
