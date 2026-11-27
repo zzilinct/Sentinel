@@ -77,11 +77,13 @@ if ($local -and $Broken) {
   $leaf = Split-Path $Next -Leaf
   $fetches = { @(Get-Content $feedLog -ErrorAction SilentlyContinue | Where-Object { ($_ -split ' ')[0] -eq $leaf }).Count }
   $deadline = (Get-Date).AddMinutes($Minutes)
+  # The exe says 1.21.6.0, the app says 1.21.6: both compared without the trailing .0
+  $from = $from -replace '(\.0)+$', ''; $want = $want -replace '(\.0)+$', ''
   $v = ''; $up = $false; $back = $false; $starts = 0; $still = 0; $before = -1
   while ((Get-Date) -lt $deadline) {
     Start-Sleep 10
-    $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion
-    $up = [bool](Get-Process Sentinel -ErrorAction SilentlyContinue)
+    $v = (Get-Item $exe -ErrorAction SilentlyContinue).VersionInfo.ProductVersion -replace '(\.0)+$', ''
+    $up =[bool](Get-Process Sentinel -ErrorAction SilentlyContinue)
     $inst = [bool](Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -like 'Sentinel-Setup*' })
     Say "installed $v, running: $up, installer running: $inst, started by hand: $starts"
     if ($v -eq $want -and $before -lt 0) { $before = & $fetches }
