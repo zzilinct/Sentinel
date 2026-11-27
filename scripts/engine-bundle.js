@@ -98,6 +98,10 @@ function swapped(url) {
 }
 
 function build(overrides = {}) {
+  // The two functions copied in with toString() carry this checkout's line endings: the engine is always written with LF.
+  return make(overrides).split('\r\n').join('\n');
+}
+function make(overrides) {
   const src = Object.fromEntries(SOURCES.map((n) => [n, overrides[n] != null ? overrides[n] : sourceOf(n)]));
   const words = zlib.gunzipSync(fs.readFileSync(path.join(SCAN, 'words.txt.gz'))).toString('utf8').split('\n').map((w) => w.trim()).filter(Boolean);
   const hashes = new Uint32Array([...new Set(words.map(hash32))].sort((a, b) => a - b));
