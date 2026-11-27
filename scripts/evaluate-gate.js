@@ -22,7 +22,9 @@ function honestSets() {
     sites: read('evaluate-sites.json').map((h) => `https://${h}/`),
     pages: read('evaluate-pages.json'),
     lookalikes: read('evaluate-lookalikes.json').map((x) => x.url),
-    freehost: read('evaluate-freehost.json')
+    freehost: read('evaluate-freehost.json'),
+    // Made-up names in the platforms' own preview shapes (not claimed to exist; see evaluate-freehost-check.js).
+    shapes: read('evaluate-freehost-shapes.json')
   };
 }
 

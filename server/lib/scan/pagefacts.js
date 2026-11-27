@@ -24,6 +24,14 @@
   }
 
   const PASSWORD = 'input[type="password"]';
+  // Sign-in services a real app hands its password form to. Another site, but the person's own choice of identity provider.
+  const IDENTITY = ['google.com', 'microsoftonline.com', 'live.com', 'microsoft.com', 'apple.com', 'okta.com', 'auth0.com', 'amazoncognito.com', 'github.com', 'facebook.com', 'supabase.co'];
+  // The site a name belongs to: its last two labels, three under a country's own "co.uk" style ending. A free host's
+  // neighbour ("a.pages.dev" and "b.pages.dev") reads as one site here: a known gap, a kit posting to a sibling is rare.
+  const siteOf = (h) => {
+    const l = h.split('.');
+    return l.slice(-(l.length >= 3 && /^(co|com|org|net|gov|ac|edu)$/.test(l[l.length - 2]) && l[l.length - 1].length === 2 ? 3 : 2)).join('.');
+  };
 
   /** @param doc the page's document  @param view {w, h} the window's size  @param tokens the protected brand names */
   function read(doc, view, tokens) {
@@ -31,7 +39,7 @@
     const away = (form) => {
       try {
         const h = new URL(form.action, doc.location.href).hostname.toLowerCase();
-        return Boolean(h) && h !== host && !h.endsWith('.' + host) && !host.endsWith('.' + h);
+        return Boolean(h) && siteOf(h) !== siteOf(host) && !IDENTITY.includes(siteOf(h));
       } catch { return false; }
     };
     const frames = [...doc.querySelectorAll('iframe')];

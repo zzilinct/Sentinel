@@ -57,6 +57,11 @@ jobs:
           if [ -f scripts/evaluate-phish.frozen.txt ]; then SAMPLE="--phish scripts/evaluate-phish.frozen.txt"; fi
           node scripts/evaluate-modes.js --sample 200 --misses misses.txt --save-phish phish.txt $SAMPLE | tee evaluation.txt
       - run: node scripts/evaluate-emails.js | tee -a evaluation.txt
+      # Every name in the honest free-host set must be a real, answering site (the set was first written from memory).
+      - shell: bash
+        run: |
+          set -o pipefail
+          node scripts/evaluate-freehost-check.js | tee -a evaluation.txt
       # Before and after on the very same addresses: main's rules score the phishing addresses this run just scored.
       - name: The same addresses with main's rules
         if: github.ref_name != 'main'

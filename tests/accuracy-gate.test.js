@@ -41,6 +41,11 @@ test('a developer project name and a platform preview deployment are not marked'
   }
 });
 
+test('Google\'s own blog on its own platform is not marked; another page named for Google there still is', async () => {
+  assert.equal(await flagged('https://googleblog.blogspot.com/'), false);
+  assert.equal(await flagged('https://google-account-support.blogspot.com/'), true);
+});
+
 test('the same relief does not reach a lure: a login word or a long random block still marks', async () => {
   for (const u of ['https://secure-login-auth.vercel.app/', 'https://docs-google-login.pages.dev/', 'https://xkqzjwpvtnbmrs-docs.vercel.app/']) {
     assert.equal(await flagged(u), true, u);

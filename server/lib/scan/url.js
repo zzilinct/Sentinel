@@ -453,6 +453,9 @@ function brandInfo(p, popular = popularSites()) {
   let visual = false;    // the look-alike reads as the brand to the eye: a digit or i for l, or a doubled letter
   let wordLike = null;   // spelled near a brand, but ordinary words (see isRealWords)
 
+  const own = L.OFFICIAL_ON_PLATFORMS[p.host] && L.PROTECTED_BRANDS.find((b) => b.token === L.OFFICIAL_ON_PLATFORMS[p.host]);
+  if (own) return { official: own, owner: own, inDomain, inSubdomain, lookalike };
+
   for (const brand of L.PROTECTED_BRANDS) {
     // A customer page on a hosting platform ("x.myshopify.com") is never the platform itself.
     const owns = (d) => (p.hosting ? p.host === d : p.registrable === d || p.host === d || p.host.endsWith('.' + d));

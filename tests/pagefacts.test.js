@@ -38,6 +38,16 @@ test('an honest page reads as nothing: own form, a title with no protected brand
   assert.equal(facts.brandIn('Paypalish things', TOKENS), null);
 });
 
+test('a password form sent to the app\'s own auth host, a related name, or a known sign-in service is not "another site"; a stranger is', () => {
+  const sends = (action, host = 'app.acme.co.uk') => facts.read(page({ pw: true, host, forms: [form(action)] }), VIEW, TOKENS).crossForm;
+  assert.equal(sends('https://auth.acme.co.uk/session'), false, 'same registrable domain under a country ending');
+  assert.equal(sends('https://login.acme.com/x', 'app.acme.com'), false);
+  assert.equal(sends('https://accounts.google.com/signin', 'my.pages.dev'), false, 'an identity provider');
+  assert.equal(sends('https://tenant.auth0.com/u/login', 'my.pages.dev'), false);
+  assert.equal(sends('https://collect.example.net/post', 'app.acme.com'), true);
+  assert.equal(sends('https://acme.co.uk.evil.example/p'), true, 'a lookalike tail is another site');
+});
+
 test('one window-sized frame is read; two frames, or a small one, are not', () => {
   const big = el({ getBoundingClientRect: () => ({ width: 980, height: 790 }) });
   assert.equal(facts.read(page({ frames: [big] }), VIEW, TOKENS).frame, true);

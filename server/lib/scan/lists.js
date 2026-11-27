@@ -332,8 +332,12 @@ const SCAM_KITS = [
     phrases: ['click allow', 'to confirm you are not a robot', 'press allow', 'allow notifications', 'to watch the video'] }
 ];
 
+// A company's own page on a free platform, named by exact address and read to be the company's: Google's official blog is
+// a blogspot page. A name pattern would let anyone claim it, so each is listed whole. Brand token, by host.
+const OFFICIAL_ON_PLATFORMS = { 'googleblog.blogspot.com': 'google' };
+
 module.exports = {
-  MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS, NOT_LOOKALIKES, FOREIGN_WORDS,
+  OFFICIAL_ON_PLATFORMS, MULTI_SUFFIXES, RISKY_TLDS, KIT_FILES, ARCHIVES, PROTECTED_BRANDS, HOST_KEYWORDS, PATH_KEYWORDS, NOT_LOOKALIKES, FOREIGN_WORDS,
   TECH_SUPPORT_WORDS, DELIVERY_WORDS, GOV_WORDS, URL_SHORTENERS, CLICK_TRACKERS, FREE_HOSTING, DYNAMIC_DNS, OBJECT_STORAGE,
   CRYPTOMINER_HOSTS, EXECUTABLE_EXT, MACRO_DOC_EXT, ARCHIVE_EXT, DOC_EXT, FREE_MAIL_PROVIDERS,
   DEFAULT_ALLOWLIST, SEED_BLOCKLIST, SCAM_KITS, PATH_HOSTING, TENANT_PLATFORMS
