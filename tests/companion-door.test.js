@@ -17,7 +17,7 @@ const Say = require('../extension/src/lib/say.js');
 const RED = { url: 'http://bad.test/x', host: 'bad.test', threats: { scam: { badge: 'red' } }, reasons: [{ text: 'A fake sign-in' }, { text: 'Young address' }], overall: { badge: 'red', label: 'Confirmed scam' } };
 
 /** The worker with a browser that keeps its rules, like the real one. */
-function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null, signedOut = false } = {}) {
+function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null, signedOut = false, scannerDown = false } = {}) {
   const asked = [];
   const dynamic = [];
   const session = [];
@@ -50,7 +50,7 @@ function worker({ list = [], tabUrl = 'http://bad.test/x', fetchVerdict = null, 
     fetch: async (u) => {
       asked.push(String(u));
       if (fetchVerdict && u.includes('/live/visit')) return { ok: true, json: async () => ({ verdict: fetchVerdict }) };
-      if (u.includes('/auth/me')) return { ok: true, json: async () => ({ user: {}, plan: { features: { liveFast: true } }, usage: { liveMinutes: {} }, week: {} }) };
+      if (u.includes('/auth/me') && !scannerDown) return { ok: true, json: async () => ({ user: {}, plan: { features: { liveFast: true } }, usage: { liveMinutes: {} }, week: {} }) };
       throw new Error('offline');
     } };
   vm.createContext(ctx);
@@ -356,4 +356,15 @@ test('the block page for a listed site, or for a copy of a brand, asks no scanne
   loadThreatList(inn);
   await inn.call('block-real', { url: 'https://listed-only-here.test/a' });
   assert.deepEqual(inn.asked.filter((u) => u.includes('/live/')), [], 'a listed address is not sent to the scanner either');
+});
+
+test('signed in, the scanner stops answering: the worker says so in its state, and says it again once the scanner is back', async () => {
+  const w = worker({ scannerDown: true });
+  await w.ctx.recalled;
+  assert.equal((await w.call('state')).away, true, 'the account check that failed is enough');
+  const { device } = await w.ctx.liveBatch(['https://example.org/a'], 'quick');
+  assert.equal(device, true);
+  const up = worker();
+  await up.ctx.recalled;
+  assert.equal((await up.call('state')).away, false, 'a scanner that answers is not away');
 });

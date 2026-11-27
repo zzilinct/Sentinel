@@ -99,8 +99,10 @@ export async function apiFetch(path, { method = 'GET', body, timeout = 20000 } =
       signal: AbortSignal.timeout(timeout)
     });
   } catch (err) {
+    reach.away = Date.now();
     throw new ApiError('Sentinel is unreachable right now', 0, 'offline');
   }
+  reach.away = 0;
 
   let data = null;
   try { data = await res.json(); } catch { /* empty body */ }
