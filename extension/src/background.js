@@ -1170,6 +1170,16 @@ async function askedAddress(tabId, url) {
   const plain = url.replace(/^https:/i, 'http:');
   return (await askedHttp(tabId, plain)) ? plain : url;
 }
+// The large list on this device is kept as hashes, so the browser's one rule (syncDoor) cannot hold it. A navigation to a
+// site on it closes the door on that one address as it starts: the same session rule a red answer makes. The rule is
+// written while the browser sets the request up, so it can lose the race; then onNavigate (below) replaces the page.
+if (ext.webNavigation.onBeforeNavigate && dnr()) {
+  ext.webNavigation.onBeforeNavigate.addListener(async (d) => {
+    if (d.frameId !== 0) return;
+    await recalled;
+    if (listed(hostOf(d.url))) doorOnAddress(d.url);
+  }, { url: [{ schemes: ['http', 'https'] }] });
+}
 if (ext.webNavigation.onBeforeNavigate) ext.webNavigation.onBeforeNavigate.addListener(askedFor, { url: [{ schemes: ['http'] }] });
 
 ext.webNavigation.onCommitted.addListener(onNavigate);
