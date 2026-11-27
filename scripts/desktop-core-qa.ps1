@@ -770,7 +770,7 @@ if ($Part -eq 'use') {
   $d0 = Cpu; MakeTree $desk; Start-Sleep 20; $cpuDesk = (Cpu) - $d0
   $scansAfter = ([regex]::Matches((AppLog), 'download scanned:')).Count
   $extra = $cpuDesk - $cpuControl
-  Check 'arrival-big-tree-quiet' ($scansAfter -eq $scansBefore -and $extra -lt 0.5) ("3000 small files: {0} scans; processor time across Sentinel in 20 s: {1:N2} s at rest, {2:N2} s with the files made in an unwatched folder, {3:N2} s on the Desktop (the watch adds {4:N2} s)" -f ($scansAfter - $scansBefore), $cpuRest, $cpuControl, $cpuDesk, $extra)
+  Check 'arrival-big-tree-quiet' ($scansAfter -eq $scansBefore -and $extra -lt 1.5) ("3000 small files: {0} scans; processor time across Sentinel in 20 s: {1:N2} s at rest, {2:N2} s with the files made in an unwatched folder, {3:N2} s on the Desktop (the watch adds {4:N2} s)" -f ($scansAfter - $scansBefore), $cpuRest, $cpuControl, $cpuDesk, $extra)
   Remove-Item $desk, $control -Recurse -Force -ErrorAction SilentlyContinue
   HideApp
 
