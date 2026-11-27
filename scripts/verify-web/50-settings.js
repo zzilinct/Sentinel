@@ -116,6 +116,10 @@ async function checkSettings() {
           note: (document.querySelector('#whats-new .set-note') || {}).innerText || '', mail: (document.querySelector('#support a.btn') || {}).href || '',
           account: [...document.querySelectorAll('#account [data-set-row]')].map((r) => r.id) }))()`);
 
+        // The search belongs to the list (a phone's section page has none): back to it, as the link back does.
+        await evalIn(browser, s, "(() => { history.pushState({}, '', '/app/settings'); dispatchEvent(new PopStateEvent('popstate')); })()");
+        await until(browser, s, ready, 20000);
+        await sleep(300);
         await evalIn(browser, s, "(() => { const f = document.querySelector('[data-set-find]'); f.focus(); f.value = 'roblox'; f.dispatchEvent(new Event('input', { bubbles: true })); })()");
         await sleep(700);
         const found = await evalIn(browser, s, `(() => ({ shown: ${SHOWN}, said: document.querySelector('[data-set-count]').textContent, none: document.querySelector('[data-set-none]').hidden }))()`);

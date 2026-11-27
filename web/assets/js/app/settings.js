@@ -1023,6 +1023,7 @@
       back.hidden = finding || wide.matches || !s;
       // The note about the Windows app is the list's and the search's: a section's page starts with its own words.
       if (note) note.hidden = !finding && !wide.matches && Boolean(s);
+      box.toggleAttribute('data-in-section', !finding && !wide.matches && Boolean(s));
       $$('[data-set-go]', el).forEach((a) => (a.dataset.setGo === s && !finding ? a.setAttribute('aria-current', 'true') : a.removeAttribute('aria-current')));
     }
     const onWide = () => open(section || (wide.matches ? 'look' : ''));
