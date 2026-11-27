@@ -48,7 +48,7 @@ async function checkStates() {
     // Each place's wait, held, then what came, at the same width: the first time (a new account's empty places, from
     // app.css) and the next time (the height kept on this device). A difference is the page jumping under the reader.
     const SLOTS = { recent: '[data-recent]', week: '[data-week]', stats: '[data-stats]', history: '[data-list]', allow: '[data-allow]', block: '[data-block]', devices: '[data-sessions]', assistants: '[data-pane]' };
-    const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings': ['devices'], '/app/assistants': ['assistants'] };
+    const PAGES = { '/app': ['recent'], '/app/week': ['week'], '/app/history': ['stats', 'history'], '/app/sites': ['allow', 'block'], '/app/settings#account': ['devices'], '/app/assistants': ['assistants'] };
     const jumps = [];
     const ghosts = [];
     await browser.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: 'dark' }, { name: 'prefers-reduced-motion', value: 'reduce' }] }, s);
