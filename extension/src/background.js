@@ -357,6 +357,8 @@ async function onNavigate(details) {
       return;
     }
   }
+  // A page that finished loading before its answer came is read now (the other way round, onCompleted reads it).
+  if (suspect(verdict)) Promise.resolve(ext.tabs.get(details.tabId)).then((t) => t && t.status === 'complete' && pageShape(details.tabId, details.url, verdict)).catch(() => {});
   return afterVerdict(details, verdict, settings);
 }
 
@@ -391,7 +393,10 @@ async function afterVerdict(details, verdict, settings) {
 const BADGE_RANK = [null, 'yellow', 'orange', 'red'];
 const rankOf = (v) => BADGE_RANK.indexOf((v && v.overall && v.overall.badge) || null);
 const suspect = (v) => Object.values((v && v.threats) || {}).some((t) => t && t.score >= 8);
+const shapeRead = new Map();   // tab -> the address read there, so a page is read once however its answer and its load line up
 async function pageShape(tabId, url, before) {
+  if (shapeRead.get(tabId) === url) return;
+  shapeRead.set(tabId, url);
   const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
   if (!tab || tab.incognito || hostOf(tab.url || '') !== hostOf(url)) return;
   const settings = await getSettings();

@@ -19,9 +19,7 @@
     "sites": [],
     "pages": [],
     "lookalikes": [],
-    "freehost": [
-      "https://tailwind-nextjs-starter-blog.vercel.app/"
-    ],
+    "freehost": [],
     "shapes": []
   }
 }
