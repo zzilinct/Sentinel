@@ -95,7 +95,12 @@ if ($local -and $Broken) {
   Check 'bad-version-installed' ($before -ge 0) "the app installed $want by itself ($before requests for its installer)"
   Check 'returned' $back "back on $from after $starts start(s) by hand (the second bad start is the one that returns); installed now $v"
   Check 'second-bad-start' ($starts -eq 2) "started by hand $starts time(s)"
-  Start-Sleep 90   # its own check for updates (20 s after start) meets the bad version again
+  # The old installer put back its own feed address (GitHub): point the app at the runner's feed again and start it
+  # again, so its check for updates (20 s after start) meets the bad version here. Told once is checked across both starts.
+  Get-Process Sentinel -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 3
+  [IO.File]::WriteAllText((Join-Path (Split-Path $exe) 'resources\app-update.yml'), "provider: generic`nurl: http://127.0.0.1:47930/`nupdaterCacheDirName: sentinel-desktop-updater`nuseMultipleRangeRequest: false`n")
+  Start-Process $exe -ArgumentList '--hidden'
+  Start-Sleep 60
   $s = try { Get-Content "$data\settings.json" -Raw | ConvertFrom-Json } catch { $null }
   Check 'skipped' ($s -and $s.skipVersion -eq $want -and $s.rolledBack.to -eq $from) "skipVersion $($s.skipVersion); rolledBack to $($s.rolledBack.to)"
   Check 'not-downloaded-again' ($before -ge 0 -and (& $fetches) -eq $before) "requests for the bad installer: $before when it installed, $(& $fetches) after the return"
