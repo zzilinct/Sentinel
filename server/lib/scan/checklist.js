@@ -29,6 +29,10 @@ function mash(seg) {
 // The name as people see it: an international name (xn--mnchen-3ya is münchen) is judged by its letters, not by the
 // hyphens and digits of its encoding. U02 already weighs the encoding itself.
 const shownName = (p) => decodeLabel(p.sld) || p.sld;
+// The fixed shapes Vercel and Netlify give every preview deployment ("<site>-git-<branch>-<team>", "<site>-<9 characters>-<team>",
+// "deploy-preview-12--<site>"): long, hyphenated and numbered by the platform, so those shapes say nothing about the page.
+const previewName = (p) => (p.hosting === 'vercel.app' && (/-git-/.test(p.sld) || /-(?=[a-z]*\d)[a-z0-9]{9}-[a-z0-9-]+$/.test(p.sld)))
+  || (p.hosting === 'netlify.app' && /^deploy-preview-\d+--/.test(p.sld));
 
 // "Latin", "Latin and Cyrillic", "Latin, Cyrillic and Greek".
 const andList = (list) => (list.length > 2 ? `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}` : list.join(' and '));
@@ -50,6 +54,7 @@ const CREDENTIAL_WORDS = ['verify', 'verification', 'validate', 'secure', 'secur
   'payroll', 'salary', 'benefits', 'w2', 'enrollment', 'hr', 'docs', 'document', 'documents', 'fileshare', 'sharefile', 'portal', 'sso', 'adfs', 'authenticate', 'authentication'];
 // Section names shared platforms put in their own addresses (docs.google.com/document/..., drive/file): the platform
 // chose them, not whoever made the page, so they say nothing about the page.
+const DEV_WORDS = new Set(['docs', 'document', 'documents', 'auth']);
 const PLATFORM_WORDS = new Set(['docs', 'document', 'documents', 'drive', 'file', 'forms', 'sites', 'view', 'edit']);
 const authorWords = (p, words) => (L.PATH_HOSTING.includes(p.host) ? new Set([...words].filter((w) => !PLATFORM_WORDS.has(w))) : words);
 // A page ABOUT a company (nerdwallet.com/reviews/banking/chase-bank, trustpilot.com/review/www.chase.com,
@@ -163,11 +168,11 @@ const URL_CHECKS = [
     run: ({ p }) => (p.subdomains.length >= 4 ? fail(12, `${p.subdomains.length} levels of subdomains`) : pass(`${p.subdomains.length} subdomain level(s)`)) },
 
   { id: 'U05', group: 'Address', threat: 'scam', title: 'Domain name is not unusually long',
-    run: ({ p }) => (!p.isIp && p.sld.length > 25 ? warn(8, `${p.sld.length}-character name`) : pass('Normal length')) },
+    run: ({ p }) => (!p.isIp && !previewName(p) && p.sld.length > 25 ? warn(8, `${p.sld.length}-character name`) : pass('Normal length')) },
 
   { id: 'U06', group: 'Address', threat: 'scam', title: 'Domain is not stuffed with hyphens',
     run: ({ p }) => {
-      const n = (shownName(p).match(/-/g) || []).length;
+      const n = previewName(p) ? 0 : (shownName(p).match(/-/g) || []).length;
       if (n >= 3) return fail(12, `${n} hyphens in the domain name`);
       if (n === 2) return warn(5, 'Two hyphens in the domain name');
       return pass('Few or no hyphens');
@@ -272,7 +277,8 @@ const URL_CHECKS = [
       }
       const hosted = L.FREE_HOSTING.find((d) => p.host === d || p.host.endsWith('.' + d));
       if (!hosted || p.host === hosted) return pass('Own domain');
-      const bait = brand.inSubdomain || CREDENTIAL_WORDS.some((w) => words.has(w));
+      // "docs" and "auth" alone name a developer's project ("next-auth-example", "docs-starter"), not a lure.
+      const bait = brand.inSubdomain || CREDENTIAL_WORDS.some((w) => !DEV_WORDS.has(w) && words.has(w));
       return bait ? fail(26, `Free ${hosted} page using brand or login wording`) : warn(10, `Hosted on free ${hosted}`);
     } },
 
@@ -283,8 +289,9 @@ const URL_CHECKS = [
       const digits = (label.match(/\d/g) || []).length;
       const hyphens = (label.match(/-/g) || []).length;
       const dated = /\d{1,2}-\d{1,2}-(19|20)\d{2}/.test(label);
-      const random = label.length >= 12 && entropy(label.replace(/[-\d]/g, '')) > 3.3 && /[bcdfghjklmnpqrstvwxz]{4,}/.test(label);
-      if (dated || (hyphens >= 3 && digits >= 3) || random) return fail(20, `Throwaway page name "${label}" on ${p.hosting}`);
+      // Hyphen-joined short words ("nextjs-postgres-auth") are a project's name: a hyphenated label is random only with a long block in it.
+      const random = label.length >= 12 && entropy(label.replace(/[-\d]/g, '')) > 3.3 && /[bcdfghjklmnpqrstvwxz]{4,}/.test(label) && (!label.includes('-') || label.split('-').some((b) => b.length >= 10));
+      if (!previewName(p) && (dated || (hyphens >= 3 && digits >= 3) || random)) return fail(20, `Throwaway page name "${label}" on ${p.hosting}`);
       return pass('Readable page name');
     } },
 
@@ -573,6 +580,7 @@ const KNOWLEDGE_CHECKS = [
       const label = p.subdomains[0] || (p.hosting ? p.sld : '');
       // A well-known site's own server names ("scontent-lax3-1", "rr3---sn-a5mekn6s") are its business, not a lure's.
       if (knowledge.wellKnown) return pass('A well-known site\'s own server name');
+      if (!p.subdomains[0] && previewName(p)) return pass('A preview deployment\'s own name');
       if (label.length < 6 || !/\d/.test(label) || !/[a-z]/.test(label)) return pass('No random subdomain');
       const digits = (label.match(/\d/g) || []).length;
       const random = entropy(label) > 2.8 || (digits >= 2 && !/[aeiou]{2}/.test(label) && !/^(www|mail|api|cdn|app|m|static|img|ftp)\d*$/.test(label));
@@ -815,6 +823,23 @@ const KNOWLEDGE_CHECKS = [
       const m = shownVersusReal(hint.text, p.url, Boolean(knowledge && knowledge.wellKnown));
       if (!m) return pass('The words fit where it goes');
       return fail(38, m.brand ? `This link says it is ${m.shown} but opens ${m.real}` : `This link shows ${m.shown} but opens ${m.real}`);
+    } },
+
+  { id: 'X03', group: 'Impersonation', threat: 'scam', title: 'The page itself is not a sign-in page made to copy another site',
+    run: ({ p, hint }) => {
+      // Yes-or-no facts read in the person's browser for an address already suspect (pagefacts.js, ctx.hint.facts): a password
+      // box, where its form sends it, a window-sized frame, and the protected brand a title names. No page text ever arrives.
+      // Absent where no browser read a page (the website's check, the phone's): skipped. They only add a warning.
+      const f = hint && hint.facts;
+      if (!f) return skip('The page was not read');
+      const b = f.brand && L.PROTECTED_BRANDS.find((x) => x.token === f.brand);
+      // Its own site: a brand's pages say its name and ask for a password everywhere.
+      const named = b && !b.domains.some((d) => p.host === d || p.host.endsWith('.' + d)) ? b.domains[0] : null;
+      if (f.password && named) return fail(40, `Its page asks for a password and its title says "${f.brand}", but it is not ${named}`);
+      if (f.password && f.crossForm) return fail(40, 'Its page asks for a password and sends it to another site');
+      if (named) return warn(10, `Its title says "${f.brand}", but it is not ${named}`);
+      if (f.frame) return warn(8, 'Its page is one window-sized frame showing another page');
+      return pass('The page looks like its address');
     } },
 
   { id: 'U54', group: 'Wording', threat: 'scam', title: 'Trust words in the name are spelled right',

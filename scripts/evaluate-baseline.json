@@ -1,0 +1,27 @@
+{
+  "flagged": 165,
+  "total": 300,
+  "byClass": {
+    "other": {
+      "total": 46,
+      "flagged": 5
+    },
+    "free host": {
+      "total": 187,
+      "flagged": 155
+    },
+    "campaign domain": {
+      "total": 67,
+      "flagged": 5
+    }
+  },
+  "honestFalseAlarms": {
+    "sites": [],
+    "pages": [],
+    "lookalikes": [],
+    "freehost": [
+      "https://tailwind-nextjs-starter-blog.vercel.app/",
+      "https://googleblog.blogspot.com/"
+    ]
+  }
+}

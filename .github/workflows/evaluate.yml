@@ -49,7 +49,10 @@ jobs:
           node-version: '24'
       - run: npm ci --ignore-scripts || npm install --ignore-scripts
       # The frozen sample when there is one (the same addresses every release), else today's feed.
-      - run: |
+      # The gate (scripts/evaluate-gate.js) fails this step: pipefail keeps tee from hiding it. The report is uploaded either way.
+      - shell: bash
+        run: |
+          set -o pipefail
           SAMPLE=""
           if [ -f scripts/evaluate-phish.frozen.txt ]; then SAMPLE="--phish scripts/evaluate-phish.frozen.txt"; fi
           node scripts/evaluate-modes.js --sample 200 --misses misses.txt --save-phish phish.txt $SAMPLE | tee evaluation.txt

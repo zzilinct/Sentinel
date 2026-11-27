@@ -80,7 +80,7 @@ async function coreScan(p, { research: wanted, budgetMs, hint, onStage = () => {
   // Results computed before a feed import (including in-flight scans) cannot
   // satisfy a lookup after that import has completed.
   // What the search result says about the page (its title, what was searched) changes the answer: part of the key.
-  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}|${hint.text || ''}`).digest('hex').slice(0, 12)}` : '';
+  const hintKey = hint ? `|h:${require('crypto').createHash('sha1').update(`${hint.title}|${hint.query}|${hint.text || ''}|${JSON.stringify(hint.facts || null)}`).digest('hex').slice(0, 12)}` : '';
   const key = `${feeds.revision()}|${research ? (lite ? 'l' : 'r') : 'q'}|${p.url}${hintKey}`;
   const cached = cacheGet(key);
   if (cached) return cached;
@@ -307,8 +307,12 @@ function cleanHint(h) {
   const query = String(h.query || '').replace(/\s+/g, ' ').trim().slice(0, 200);
   // The words of a hovered link (checklist X02): compared, never kept or logged.
   const text = String(h.text || '').replace(/\s+/g, ' ').trim().slice(0, 120);
-  return title || query || text ? { title, query, text } : null;
+  // The page's own shape (pagefacts.js): yes-or-no facts and the name of a protected brand, nothing else is accepted.
+  const f = h.facts && typeof h.facts === 'object' ? h.facts : null;
+  const facts = f ? { password: f.password === true, crossForm: f.crossForm === true, frame: f.frame === true, brand: BRAND_TOKENS.has(f.brand) ? f.brand : null } : null;
+  return title || query || text || facts ? { title, query, text, facts } : null;
 }
+const BRAND_TOKENS = new Set(require('./lists').PROTECTED_BRANDS.map((b) => b.token));
 
 async function scanUrl(raw, opts = {}) {
   const p = analyze(String(raw || ''));

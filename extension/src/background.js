@@ -272,7 +272,7 @@ async function liveBatch(urls, phase, isPrivate = false, hints = null) {
   const settings = await getSettings();
   if (phase === 'research' && !delicateOn(settings)) return { locked: 'fast', verdicts: {} };
 
-  const keyOf = (url) => (hints && hints[url] ? `${url}\n${hints[url].text}` : url);
+  const keyOf = (url) => (hints && hints[url] ? `${url}\n${hints[url].text || ''}\n${JSON.stringify(hints[url].facts || '')}` : url);
   const out = {};
   const pending = [];
   for (const url of urls) {
@@ -357,6 +357,11 @@ async function onNavigate(details) {
       return;
     }
   }
+  return afterVerdict(details, verdict, settings);
+}
+
+// Everything that follows a verdict for a page: the mark, the notes, the warning or the block.
+async function afterVerdict(details, verdict, settings) {
   paint(details.tabId, verdict);
   // A shop's checkout whose address is young or unknown: a calm note in the corner, the same rules as the Windows app.
   if (verdict.pay && verdict.pay.text) Promise.resolve(ext.tabs.sendMessage(details.tabId, { type: 'sentinel:pay', text: String(verdict.pay.text) })).catch(() => {});
@@ -375,6 +380,30 @@ async function onNavigate(details) {
   if (severe) await typedFlagged(details.tabId, details.url);
   else if (verdict.paypage) await payPause(details.tabId, details.url, verdict.paypage);
   else await payLook(details.tabId, details.url);
+}
+
+/* ------------------------------------------------------------ page shape */
+
+// A page already suspect (a free host, or scored 8 or more) is read once it has loaded: a password box, whether its form
+// sends it to another site, a window-sized frame, and which protected brand its title names (content/pagefacts.js).
+// Only those four facts go to the scanner, as a hint beside the address (checklist X03), never from a private window
+// and never when the page shows none of them. The page's text, its title and what is typed in it are not read out.
+const BADGE_RANK = [null, 'yellow', 'orange', 'red'];
+const rankOf = (v) => BADGE_RANK.indexOf((v && v.overall && v.overall.badge) || null);
+const suspect = (v) => Object.values((v && v.threats) || {}).some((t) => t && t.score >= 8);
+async function pageShape(tabId, url, before) {
+  const tab = await Promise.resolve(ext.tabs.get(tabId)).catch(() => null);
+  if (!tab || tab.incognito || hostOf(tab.url || '') !== hostOf(url)) return;
+  const settings = await getSettings();
+  if (!settings.enabled || liveBlockReason()) return;
+  let r = null;
+  try { [{ result: r } = {}] = await ext.scripting.executeScript({ target: { tabId, frameIds: [0] }, files: ['src/content/brandtokens.js', 'src/content/pagefacts.js'] }); } catch { return; }
+  if (!r || !(r.password || r.crossForm || r.frame || r.brand)) return;
+  const facts = { password: r.password === true, crossForm: r.crossForm === true, frame: r.frame === true, brand: typeof r.brand === 'string' ? r.brand : null };
+  const { verdicts } = await liveBatch([url], 'quick', false, { [url]: { facts } });
+  const v = verdicts && verdicts[url];
+  if (!v || !v.ok || rankOf(v) <= rankOf(before)) return;
+  await afterVerdict({ tabId, url }, v, settings);
 }
 
 /* ------------------------------------------------------------- pay pause */
@@ -1163,6 +1192,7 @@ ext.webNavigation.onCompleted.addListener((details) => inTabOrder(details.tabId,
     const settings = await getSettings();
     if (known.overall.badge === 'orange' && settings.warnOnNavigate && warns(settings.warningsLevel, 'orange') && !(await isLetThroughHere(details.tabId, details.url))) warnInPlace(details.tabId, known, settings);
   }
+  if (known && suspect(known)) pageShape(details.tabId, details.url, known).catch(() => {});
   if (await sessionGet(typedKey(details.tabId))) typedWatch(details.tabId);
   else await typedDeliver(details.tabId);
 }));
